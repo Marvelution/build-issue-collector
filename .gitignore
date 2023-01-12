@@ -1,18 +1,8 @@
-# IDEs
 .idea
-.vscode
 *.iml
-
-# Test files
 tmp
 out
-
-# Template executable
-jfrog-cli-plugin-template
-
-# Vim
-*~
-*.swp
-
-# IOS
 *.DS_Store
+
+ext-build-info
+test.*
