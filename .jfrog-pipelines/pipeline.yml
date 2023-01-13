@@ -18,6 +18,7 @@ pipelines:
     environmentVariables:
       readOnly:
         JFROG_CLI_PLUGINS_SERVER: Artifactory
+        JFROG_CLI_LOG_LEVEL: DEBUG
     runtime:
       type: image
       image:
