@@ -43,6 +43,20 @@ pipelines:
       - export version=$(./ext-build-info --version | awk '{print $3}')
 
       - ./ext-build-info collect-issues --tracker=Jira ${pipeline_name} ${run_number}
+      - popd
+  - name: publish
+    type: Bash
+    configuration:
+      integrations:
+      - name: Artifactory
+      inputResources:
+      - name: ExtBuildInfo_GitRepo
+    execution:
+      onExecute:
+      - pushd $(find_resource_variable "ExtBuildInfo_GitRepo" resourcePath)
+
+      - go build -o ext-build-info
+      - export version=$(./ext-build-info --version | awk '{print $3}')
 
       - jf plugin publish ext-build-info "$version"
       - popd
