@@ -81,9 +81,9 @@ pipelines:
       - name: {{.Values.pipeline.name}}_ReleaseGitRepo
     execution:
       onExecute:
-      - pushd $(find_resource_variable "{{.Values.pipeline.name}}_GitRepo" resourcePath)
+      - pushd $(find_resource_variable "{{.Values.pipeline.name}}_ReleaseGitRepo" resourcePath)
 
-      - export version=$(find_resource_variable "{{.Values.pipeline.name}}_GitRepo" gitTagName)
+      - export version=$(find_resource_variable "{{.Values.pipeline.name}}_ReleaseGitRepo" gitTagName)
 
       - jf plugin publish ext-build-info "$version"
       - popd
