@@ -19,8 +19,6 @@ resources:
   configuration:
     gitProvider: {{.Values.repo.gitProvider}}
     path: {{.Values.repo.path}}
-    branches:
-      exclude: ^{{gitBranch}}$
     tags:
       include: ^v.*$
     buildOn:
