@@ -1,0 +1,7 @@
+pipeline:
+  name: ExtBuildInfo
+repo:
+  gitProvider: Github
+  path: marvelution/ext-build-info
+artifactory: Artifactory
+jira: Jira
