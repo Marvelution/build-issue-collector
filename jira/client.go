@@ -55,10 +55,11 @@ func (c *Client) GetIssues(foundIssueKeys []string) ([]buildinfo.AffectedIssue, 
 	utils.SetContentType("application/json", &clientDetails.Headers)
 
 	request := &SearchRequest{
-		Jql:        "issue IN (" + strings.Join(foundIssueKeys[:], ",") + ")",
-		Fields:     []string{"key", "summary"},
-		StartAt:    0,
-		MaxResults: 100,
+		Jql:           "issue IN (" + strings.Join(foundIssueKeys[:], ",") + ")",
+		Fields:        []string{"key", "summary"},
+		StartAt:       0,
+		MaxResults:    100,
+		ValidateQuery: "warn",
 	}
 
 	content, err := json.Marshal(request)
@@ -97,10 +98,11 @@ func (c *Client) GetIssues(foundIssueKeys []string) ([]buildinfo.AffectedIssue, 
 }
 
 type SearchRequest struct {
-	Jql        string   `json:"jql,omitempty"`
-	StartAt    int      `json:"startAt,omitempty"`
-	MaxResults int      `json:"maxResults,omitempty"`
-	Fields     []string `json:"fields,omitempty"`
+	Jql           string   `json:"jql,omitempty"`
+	StartAt       int      `json:"startAt,omitempty"`
+	MaxResults    int      `json:"maxResults,omitempty"`
+	Fields        []string `json:"fields,omitempty"`
+	ValidateQuery string   `json:"validateQuery,omitempty"`
 }
 
 type SearchResult struct {
