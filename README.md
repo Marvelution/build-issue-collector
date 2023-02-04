@@ -46,6 +46,20 @@ Uninstalling a plugin
     [Info] Collecting build issues from VCS...
     [Info] Collected 1 issue details for MyBuild/1.
     ```
+* clean-slate
+  - Arguments:
+    - build name - The name of the build.
+    - build number - The number of the build.
+  - Flags
+    - --project - [Optional] Server ID configured using the config command.
+
+  - Example:
+    ```
+    $ jf ext-build-info clean-slate MyBuild 1
+
+    [Info] Clearing all existing build-info to start from a clean slate.
+    [Info] Removing build-info directory: /path/to/build/info
+    ```
 
 ### Environment variables
 The plugin can lookup the tracker url, username and token using the JFrog Pipelines integration environment variables.  

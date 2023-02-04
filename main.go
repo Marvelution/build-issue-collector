@@ -7,6 +7,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/plugins"
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/marvelution/ext-build-info/commands"
+	"github.com/marvelution/ext-build-info/docs/cleanslate"
 	"github.com/marvelution/ext-build-info/docs/collectissues"
 	"strconv"
 )
@@ -15,7 +16,7 @@ func main() {
 	plugins.PluginMain(components.App{
 		Name:        "ext-build-info",
 		Description: "Extended build info.",
-		Version:     "v1.1.1",
+		Version:     "v1.2.1",
 		Commands: []components.Command{
 			{
 				Name:        "collect-issues",
@@ -86,6 +87,30 @@ func main() {
 					return collectIssuesCmd(c)
 				},
 			},
+			{
+				Name:        "clean-slate",
+				Description: cleanslate.GetDescription(),
+				Aliases:     []string{"cs"},
+				Flags: []components.Flag{
+					components.StringFlag{
+						Name:        "project",
+						Description: "Server ID configured using the config command.",
+					},
+				},
+				Arguments: []components.Argument{
+					{
+						Name:        "build name",
+						Description: "The name of the build.",
+					},
+					{
+						Name:        "build number",
+						Description: "The number of the build.",
+					},
+				},
+				Action: func(c *components.Context) error {
+					return cleanSlateCmd(c)
+				},
+			},
 		},
 	})
 }
@@ -115,6 +140,20 @@ func collectIssuesCmd(c *components.Context) error {
 		collectIssueCommand.SetDotGitPath(c.Arguments[0])
 	}
 	return collectIssueCommand.Run()
+}
+
+func cleanSlateCmd(c *components.Context) error {
+	nargs := len(c.Arguments)
+	if nargs > 2 {
+		return errors.New(fmt.Sprintf("Wrong number of arguments (%d).", nargs))
+	}
+	buildConfiguration := CreateBuildConfiguration(c)
+	if err := buildConfiguration.ValidateBuildParams(); err != nil {
+		return err
+	}
+
+	cleanslateCommand := commands.NewCleanSlateCommand().SetBuildConfiguration(buildConfiguration)
+	return cleanslateCommand.Run()
 }
 
 func CreateBuildConfiguration(c *components.Context) *artifactoryUtils.BuildConfiguration {
