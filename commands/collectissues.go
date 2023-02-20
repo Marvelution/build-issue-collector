@@ -159,7 +159,13 @@ func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, 
 	}
 
 	// Get log with limit, starting from the latest commit.
-	logCmd := &LogCmd{logLimit: issuesConfig.logLimit, lastVcsRevision: lastVcsRevision}
+	var logLimit int
+	if len(lastVcsRevision) > 0 {
+		logLimit = issuesConfig.logLimit
+	} else {
+		logLimit = 1
+	}
+	logCmd := &LogCmd{logLimit: logLimit, lastVcsRevision: lastVcsRevision}
 
 	// Change working dir to where .git is.
 	wd, err := os.Getwd()
@@ -271,6 +277,8 @@ func (config *CollectIssueCommand) getLatestVcsRevision(vcsUrl string) (string, 
 			break
 		}
 	}
+
+	log.Debug("Found previous VCS Revision: ", lastVcsRevision)
 
 	return lastVcsRevision, nil
 }

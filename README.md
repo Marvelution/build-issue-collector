@@ -33,6 +33,7 @@ Uninstalling a plugin
     - --tracker-token - [Optional] Tracker token to use to collect related issue from.
     - --regexp - [Optional] A regular expression used for matching the git commit messages.
     - --key-group-index - [Default: 1] The capturing group index in the regular expression used for retrieving the issue key.
+    - --git-log-limit - [Default: 100] The maximum number of git commit messages to process.
     - --aggregate - [Default: false] Set to true, if you wish all builds to include issues from previous builds.
     - --aggregation-status - [Optional] If aggregate is set to true, this property indicates how far in time should the issues be 
       aggregated. In the above example, issues will be aggregated from previous builds, until a build with a RELEASE status is found. 

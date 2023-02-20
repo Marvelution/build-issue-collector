@@ -16,7 +16,7 @@ func main() {
 	plugins.PluginMain(components.App{
 		Name:        "ext-build-info",
 		Description: "Extended build info.",
-		Version:     "v1.2.0",
+		Version:     "v1.2.1",
 		Commands: []components.Command{
 			{
 				Name:        "collect-issues",
@@ -55,6 +55,11 @@ func main() {
 						Name:         "key-group-index",
 						Description:  "The capturing group index in the regular expression used for retrieving the issue key.",
 						DefaultValue: "1",
+					},
+					components.StringFlag{
+						Name:         "git-log-limit",
+						Description:  "The maximum number of git commit messages to process.",
+						DefaultValue: "100",
 					},
 					components.BoolFlag{
 						Name:         "aggregate",
