@@ -44,7 +44,9 @@ Uninstalling a plugin
     $ jf ext-build-info collect-issues --tracker=Jira MyBuild 1
 
     [Info] Reading the git branch, revision and remote URL and adding them to the build-info.
-    [Info] Collecting build issues from VCS...
+    [Info] Collecting build issues from VCS...  
+    [Info] Searching Jira using request: {"jql": "issue IN (EX-1, EX2)", "fields": ["key", "summary"], "startAt": 0, maxResult: 100, "validateQuery": "warn"}
+    [Info] Found Jira issue: EX-1
     [Info] Collected 1 issue details for MyBuild/1.
     ```
 * clean-slate

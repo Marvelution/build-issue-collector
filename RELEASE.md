@@ -1,3 +1,6 @@
+## 1.2.2 (April 10, 2023)
+- Improved logging when searching and matching Jira issues
+
 ## 1.2.1 (February 20, 2023)
 - Improved JFrog pipelines for building and publishing the plugin internally
 

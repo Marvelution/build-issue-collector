@@ -67,7 +67,7 @@ func (c *Client) GetIssues(foundIssueKeys []string) ([]buildinfo.AffectedIssue, 
 		return nil, err
 	}
 
-	log.Debug("Searching Jira using JQL:", string(content))
+	log.Info("Searching Jira using request:", string(content))
 
 	resp, body, err := c.client.SendPost(c.config.GetUrl()+"rest/api/3/search", content, &clientDetails)
 	if err != nil {
@@ -82,7 +82,7 @@ func (c *Client) GetIssues(foundIssueKeys []string) ([]buildinfo.AffectedIssue, 
 
 		var foundIssues []buildinfo.AffectedIssue
 		for _, issue := range searchResult.Issues {
-			log.Debug("Found Jira issue: ", issue)
+			log.Info("Found Jira issue: ", issue)
 			foundIssues = append(foundIssues, buildinfo.AffectedIssue{
 				Key:        issue.Key,
 				Summary:    issue.Fields.Summary,
