@@ -14,17 +14,6 @@ resources:
     cancelPendingRunsOn:
       newCommit: true
 
-- name: {{.Values.pipeline.name}}_ReleaseGitRepo
-  type: GitRepo
-  configuration:
-    gitProvider: {{.Values.repo.gitProvider}}
-    path: {{.Values.repo.path}}
-    tags:
-      include: ^v.*$
-    buildOn:
-      commit: false
-      tagCreate: true
-
 pipelines:
 - name: {{.Values.pipeline.name}}
   configuration:
@@ -57,35 +46,4 @@ pipelines:
       - go build -o ext-build-info
 
       - ./ext-build-info collect-issues --tracker=Jira ${pipeline_name} ${run_number}
-      - popd
-- name: {{.Values.pipeline.name}}_Release
-  configuration:
-    jfrogCliVersion: 2
-    environmentVariables:
-      readOnly:
-        JFROG_CLI_PLUGINS_SERVER: {{.Values.artifactory}}
-        JFROG_CLI_BUILD_NUMBER: ${run_id}
-        JFROG_CLI_LOG_LEVEL: DEBUG
-    runtime:
-      type: image
-      image:
-        auto:
-          language: go
-          versions:
-          - "1.19"
-  steps:
-  - name: publish
-    type: Bash
-    configuration:
-      integrations:
-      - name: {{.Values.artifactory}}
-      inputResources:
-      - name: {{.Values.pipeline.name}}_ReleaseGitRepo
-    execution:
-      onExecute:
-      - pushd $(find_resource_variable "{{.Values.pipeline.name}}_ReleaseGitRepo" resourcePath)
-
-      - export version=$(find_resource_variable "{{.Values.pipeline.name}}_ReleaseGitRepo" gitTagName)
-
-      - jf plugin publish ext-build-info "$version"
       - popd
