@@ -104,8 +104,9 @@ func (config *CollectIssueCommand) Run() error {
 		partial.VcsList = append(partial.VcsList, buildinfo.Vcs{
 			Url:      gitManager.GetUrl(),
 			Revision: gitManager.GetRevision(),
-			Branch:   gitManager.GetBranch(),
-			Message:  gitManager.GetMessage(),
+			// TODO Fix looking up  the branch name
+			Branch:  gitManager.GetBranch(),
+			Message: gitManager.GetMessage(),
 		})
 
 		if config.issuesConfiguration.tracker != nil {
@@ -182,9 +183,13 @@ func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, 
 	_, _, exitOk, err := gofrogcmd.RunCmdWithOutputParser(logCmd, false, logRegExp, errRegExp)
 	if err != nil {
 		if _, ok := err.(RevisionRangeError); ok {
-			// Revision not found in range. Ignore and don't collect new issues.
-			log.Info(err.Error())
-			return []buildinfo.AffectedIssue{}, nil
+			if len(lastVcsRevision) > 0 {
+				return config.DoCollect(config.issuesConfiguration, "")
+			} else {
+				// Revision not found in range. Ignore and don't collect new issues.
+				log.Info(err.Error())
+				return []buildinfo.AffectedIssue{}, nil
+			}
 		}
 		return nil, errorutils.CheckError(err)
 	}

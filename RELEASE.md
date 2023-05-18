@@ -1,3 +1,6 @@
+## 1.2.3 (May 18, 2023)
+- Improved issue key lookup when previous build vcs revision can't be found in the git log range
+
 ## 1.2.2 (April 10, 2023)
 - Improved logging when searching and matching Jira issues
 
