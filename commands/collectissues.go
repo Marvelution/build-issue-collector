@@ -2,18 +2,18 @@ package commands
 
 import (
 	"errors"
-	"github.com/marvelution/ext-build-info/jira"
+	"github.com/marvelution/ext-build-info/services"
+	"github.com/marvelution/ext-build-info/util"
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 
 	buildinfo "github.com/jfrog/build-info-go/entities"
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	utilsconfig "github.com/jfrog/jfrog-cli-core/v2/utils/config"
-	"github.com/jfrog/jfrog-client-go/artifactory/services"
+	artservices "github.com/jfrog/jfrog-client-go/artifactory/services"
 	artclientutils "github.com/jfrog/jfrog-client-go/artifactory/services/utils"
 	clientutils "github.com/jfrog/jfrog-client-go/utils"
 	gofrogcmd "github.com/marvelution/ext-build-info/io"
@@ -89,11 +89,28 @@ func (config *CollectIssueCommand) Run() error {
 		return err
 	}
 
+	vcs := buildinfo.Vcs{
+		Url:      gitManager.GetUrl(),
+		Revision: gitManager.GetRevision(),
+		Branch:   gitManager.GetBranch(),
+		Message:  gitManager.GetMessage(),
+	}
+	if vcs.Branch == "" {
+		for _, e := range os.Environ() {
+			pair := strings.SplitN(e, "=", 2)
+			if pair[1] == vcs.Revision {
+				branchVariableName := strings.TrimSuffix(pair[0], "commitSha") + "branch"
+				vcs.Branch = os.Getenv(branchVariableName)
+				log.Info("Found git branch name '" + vcs.Branch + "' in environment variable: " + branchVariableName)
+			}
+		}
+	}
+
 	// Collect issues if required.
 	var issues []buildinfo.AffectedIssue
 	if config.issuesConfiguration.tracker != nil {
 		log.Debug("Collecting issues hosted on ", config.issuesConfiguration.tracker.Name)
-		issues, err = config.collectBuildIssues(gitManager.GetUrl())
+		issues, err = config.collectBuildIssues(vcs)
 		if err != nil {
 			return err
 		}
@@ -101,13 +118,7 @@ func (config *CollectIssueCommand) Run() error {
 
 	// Populate partials with VCS info.
 	populateFunc := func(partial *buildinfo.Partial) {
-		partial.VcsList = append(partial.VcsList, buildinfo.Vcs{
-			Url:      gitManager.GetUrl(),
-			Revision: gitManager.GetRevision(),
-			// TODO Fix looking up  the branch name
-			Branch:  gitManager.GetBranch(),
-			Message: gitManager.GetMessage(),
-		})
+		partial.VcsList = append(partial.VcsList, vcs)
 
 		if config.issuesConfiguration.tracker != nil {
 			partial.Issues = &buildinfo.Issues{
@@ -128,7 +139,7 @@ func (config *CollectIssueCommand) Run() error {
 	return nil
 }
 
-func (config *CollectIssueCommand) collectBuildIssues(vcsUrl string) ([]buildinfo.AffectedIssue, error) {
+func (config *CollectIssueCommand) collectBuildIssues(vcs buildinfo.Vcs) ([]buildinfo.AffectedIssue, error) {
 	log.Info("Collecting build issues from VCS...")
 
 	// Check that git exists in path.
@@ -138,35 +149,35 @@ func (config *CollectIssueCommand) collectBuildIssues(vcsUrl string) ([]buildinf
 	}
 
 	// Get latest build's VCS revision from Artifactory.
-	lastVcsRevision, err := config.getLatestVcsRevision(vcsUrl)
+	lastVcsRevision, err := config.getLatestVcsRevision(vcs.Url)
 	if err != nil {
 		return nil, err
 	}
 
 	// Run issues collection.
-	return config.DoCollect(config.issuesConfiguration, lastVcsRevision)
+	return config.DoCollect(config.issuesConfiguration, buildinfo.Vcs{Revision: lastVcsRevision, Branch: vcs.Branch, Message: vcs.Message})
 }
 
-func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, lastVcsRevision string) ([]buildinfo.AffectedIssue, error) {
+func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, vcs buildinfo.Vcs) ([]buildinfo.AffectedIssue, error) {
 	var foundIssueKeys []string
 	logRegExp, err := createLogRegExpHandler(issuesConfig, &foundIssueKeys)
 	if err != nil {
 		return nil, err
 	}
 
-	errRegExp, err := createErrRegExpHandler(lastVcsRevision)
+	errRegExp, err := createErrRegExpHandler(vcs.Revision)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get log with limit, starting from the latest commit.
 	var logLimit int
-	if len(lastVcsRevision) > 0 {
+	if len(vcs.Revision) > 0 {
 		logLimit = issuesConfig.logLimit
 	} else {
 		logLimit = 1
 	}
-	logCmd := &LogCmd{logLimit: logLimit, lastVcsRevision: lastVcsRevision}
+	logCmd := &LogCmd{logLimit: logLimit, lastVcsRevision: vcs.Revision}
 
 	// Change working dir to where .git is.
 	wd, err := os.Getwd()
@@ -183,8 +194,8 @@ func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, 
 	_, _, exitOk, err := gofrogcmd.RunCmdWithOutputParser(logCmd, false, logRegExp, errRegExp)
 	if err != nil {
 		if _, ok := err.(RevisionRangeError); ok {
-			if len(lastVcsRevision) > 0 {
-				return config.DoCollect(config.issuesConfiguration, "")
+			if len(vcs.Revision) > 0 {
+				return config.DoCollect(config.issuesConfiguration, buildinfo.Vcs{Revision: "", Branch: vcs.Branch, Message: vcs.Message})
 			} else {
 				// Revision not found in range. Ignore and don't collect new issues.
 				log.Info(err.Error())
@@ -196,6 +207,37 @@ func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, 
 	if !exitOk {
 		// May happen when trying to run git log for non-existing revision.
 		return nil, errorutils.CheckErrorf("failed executing git log command")
+	}
+
+	issueRegexp, err := clientutils.GetRegExp(issuesConfig.regexp)
+	if err != nil {
+		return nil, err
+	}
+	if len(vcs.Branch) > 0 {
+		// Look at git branch for issue keys
+		matchedResults := issueRegexp.FindAllStringSubmatch(vcs.Branch, -1)
+		for _, matches := range matchedResults {
+			if len(matches)-1 < issuesConfig.keyGroupIndex {
+				return nil, errors.New("unexpected result while parsing issues from git branch. " +
+					"Make sure that the regular expression used to find issues, includes a capturing group, for the issue ID")
+			}
+			found := matches[issuesConfig.keyGroupIndex]
+			log.Debug("Found issues in branch name: ", found)
+			foundIssueKeys = append(foundIssueKeys, found)
+		}
+	}
+	if len(vcs.Message) > 0 {
+		// Look at git commit message for issue keys
+		matchedResults := issueRegexp.FindAllStringSubmatch(vcs.Message, -1)
+		for _, matches := range matchedResults {
+			if len(matches)-1 < issuesConfig.keyGroupIndex {
+				return nil, errors.New("unexpected result while parsing issues from git commit message. " +
+					"Make sure that the regular expression used to find issues, includes a capturing group, for the issue ID")
+			}
+			found := matches[issuesConfig.keyGroupIndex]
+			log.Debug("Found issues in last commit message: ", found)
+			foundIssueKeys = append(foundIssueKeys, found)
+		}
 	}
 
 	if len(foundIssueKeys) > 0 {
@@ -227,7 +269,7 @@ func createLogRegExpHandler(issuesConfig *IssuesConfiguration, foundIssues *[]st
 				}
 				found = append(found, matches[issuesConfig.keyGroupIndex])
 			}
-			log.Debug("Found issues: ", found)
+			log.Debug("Found issues in commit log: ", found)
 			*foundIssues = append(*foundIssues, found...)
 			return "", nil
 		},
@@ -235,7 +277,7 @@ func createLogRegExpHandler(issuesConfig *IssuesConfiguration, foundIssues *[]st
 	return &logRegExp, nil
 }
 
-// Error to be thrown when revision could not be found in the git revision range.
+// RevisionRangeError to be thrown when revision could not be found in the git revision range.
 type RevisionRangeError struct {
 	ErrorMsg string
 }
@@ -271,8 +313,8 @@ func (config *CollectIssueCommand) getLatestVcsRevision(vcsUrl string) (string, 
 		return "", err
 	}
 
-	sshVcsUrl := config.getSshVcsUrl(vcsUrl)
-	httpsVcsUrl := config.getHttpsVcsUrl(vcsUrl)
+	sshVcsUrl := util.GetSshVcsUrl(vcsUrl)
+	httpsVcsUrl := util.GetHttpsVcsUrl(vcsUrl)
 
 	// Get previous VCS Revision from BuildInfo.
 	lastVcsRevision := ""
@@ -288,22 +330,6 @@ func (config *CollectIssueCommand) getLatestVcsRevision(vcsUrl string) (string, 
 	return lastVcsRevision, nil
 }
 
-func (config *CollectIssueCommand) getSshVcsUrl(vcsUrl string) string {
-	if strings.HasPrefix(vcsUrl, "git@") {
-		return vcsUrl
-	}
-	re := regexp.MustCompile(`^https://(.*)/(.*)$`)
-	return re.ReplaceAllString(vcsUrl, "git@$1:$2")
-}
-
-func (config *CollectIssueCommand) getHttpsVcsUrl(vcsUrl string) string {
-	if strings.HasPrefix(vcsUrl, "https://") {
-		return vcsUrl
-	}
-	re := regexp.MustCompile(`^git@(.*):(.*)$`)
-	return re.ReplaceAllString(vcsUrl, "https://$1/$2")
-}
-
 // Returns build info, or empty build info struct if not found.
 func (config *CollectIssueCommand) getLatestBuildInfo(issuesConfig *IssuesConfiguration) (*buildinfo.BuildInfo, error) {
 	// Create services manager to get build-info from Artifactory.
@@ -317,7 +343,7 @@ func (config *CollectIssueCommand) getLatestBuildInfo(issuesConfig *IssuesConfig
 	if err != nil {
 		return nil, err
 	}
-	buildInfoParams := services.BuildInfoParams{BuildName: buildName, BuildNumber: artclientutils.LatestBuildNumberKey}
+	buildInfoParams := artservices.BuildInfoParams{BuildName: buildName, BuildNumber: artclientutils.LatestBuildNumberKey}
 	publishedBuildInfo, found, err := sm.GetBuildInfo(buildInfoParams)
 	if err != nil {
 		return nil, err
@@ -393,7 +419,7 @@ func (ic *IssuesConfiguration) ValidateIssueConfiguration() (err error) {
 	if ic.tracker != nil {
 		if strings.EqualFold(ic.tracker.Name, "JIRA") {
 			ic.tracker.ProcessorFunc = func(foundIssueKeys []string) ([]buildinfo.AffectedIssue, error) {
-				client, err := jira.NewClient(ic.tracker.Url, ic.tracker.Username, ic.tracker.Token)
+				client, err := services.NewJiraService(ic.tracker.Url, ic.tracker.Username, ic.tracker.Token)
 				if err != nil {
 					return nil, err
 				}

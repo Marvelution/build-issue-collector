@@ -1,3 +1,6 @@
+## 1.3.0 (May 29, 2023)
+- Added command to send build-info to Jira Cloud
+
 ## 1.2.3 (May 18, 2023)
 - Improved issue key lookup when previous build vcs revision can't be found in the git log range
 
