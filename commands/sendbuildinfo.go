@@ -204,7 +204,7 @@ func (jc *JiraConfiguration) SetFailOnReject(failOnReject bool) *JiraConfigurati
 func (jc *JiraConfiguration) ValidateJiraConfiguration() (err error) {
 	if jc.jiraUrl == "" {
 		log.Debug("Loading Jira details from integration ", jc.jiraID)
-		jc.jiraID = os.Getenv("int_" + jc.jiraID + "_url")
+		jc.jiraUrl = os.Getenv("int_" + jc.jiraID + "_url")
 		jc.jiraClientId = os.Getenv("int_" + jc.jiraID + "_username")
 		jc.jiraSecret = os.Getenv("int_" + jc.jiraID + "_token")
 	}

@@ -1,3 +1,6 @@
+## 1.3.1 (June 1, 2023)
+- Resolved but in Jira url lookup
+
 ## 1.3.0 (May 29, 2023)
 - Added command to send build-info to Jira Cloud
 
