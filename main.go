@@ -14,7 +14,7 @@ func main() {
 	plugins.PluginMain(components.App{
 		Name:        "ext-build-info",
 		Description: "Extended build info.",
-		Version:     "v1.3.1",
+		Version:     "v1.4.0",
 		Commands: []components.Command{
 			{
 				Name:        "collect-issues",
@@ -173,6 +173,43 @@ func main() {
 					return sendBuildInfoCmd(c)
 				},
 			},
+			{
+				Name:        "notify-slack",
+				Description: "Send build-info to Slack",
+				Aliases:     []string{"ns"},
+				Flags: []components.Flag{
+					components.StringFlag{
+						Name:        "server-id",
+						Description: "Server ID configured using the config command.",
+					},
+					components.StringFlag{
+						Name:        "project",
+						Description: "Server ID configured using the config command.",
+					},
+					components.StringFlag{
+						Name:        "slack",
+						Description: "Slack integration name.",
+					},
+					components.BoolFlag{
+						Name:         "include-pre-post-runs",
+						Description:  "Enable to include pipeline preRun and postRun steps.",
+						DefaultValue: false,
+					},
+				},
+				Arguments: []components.Argument{
+					{
+						Name:        "build name",
+						Description: "The name of the build.",
+					},
+					{
+						Name:        "build number",
+						Description: "The number of the build.",
+					},
+				},
+				Action: func(c *components.Context) error {
+					return notifySlackCmd(c)
+				},
+			},
 		},
 	})
 }
@@ -240,6 +277,28 @@ func sendBuildInfoCmd(c *components.Context) error {
 	return sendBuildInfoCommand.Run()
 }
 
+func notifySlackCmd(c *components.Context) error {
+	nargs := len(c.Arguments)
+	if nargs > 2 {
+		return errors.New(fmt.Sprintf("Wrong number of arguments (%d).", nargs))
+	}
+	buildConfiguration := CreateBuildConfiguration(c)
+	if err := buildConfiguration.ValidateBuildParams(); err != nil {
+		return err
+	}
+
+	slackConfiguration, err := CreateSlackConfiguration(c)
+	if err != nil {
+		return err
+	}
+	if err := slackConfiguration.ValidateSlackConfiguration(); err != nil {
+		return err
+	}
+
+	notifySlackCommand := commands.NewNotifySlackCommand().SetBuildConfiguration(buildConfiguration).SetSlackConfiguration(slackConfiguration)
+	return notifySlackCommand.Run()
+}
+
 func CreateBuildConfiguration(c *components.Context) *artifactoryUtils.BuildConfiguration {
 	buildConfiguration := new(artifactoryUtils.BuildConfiguration)
 	buildNameArg, buildNumberArg := "", ""
@@ -285,4 +344,13 @@ func CreateJiraConfiguration(c *components.Context) (*commands.JiraConfiguration
 	jiraConfiguration.SetIncludePrePostRunSteps(c.GetBoolFlagValue("include-pre-post-runs"))
 	jiraConfiguration.SetFailOnReject(c.GetBoolFlagValue("fail-on-reject"))
 	return jiraConfiguration, nil
+}
+
+func CreateSlackConfiguration(c *components.Context) (*commands.SlackConfiguration, error) {
+	slackConfiguration := new(commands.SlackConfiguration)
+	slackConfiguration.SetServerID(c.GetStringFlagValue("server-id"))
+	slackConfiguration.SetSlack(c.GetStringFlagValue("slack"))
+	slackConfiguration.SetIncludePrePostRunSteps(c.GetBoolFlagValue("include-pre-post-runs"))
+	slackConfiguration.SetFailOnReject(c.GetBoolFlagValue("fail-on-reject"))
+	return slackConfiguration, nil
 }

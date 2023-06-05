@@ -1,3 +1,6 @@
+## 1.4.0 (June 5, 2023)
+- Added notify Slack command
+
 ## 1.3.1 (June 1, 2023)
 - Resolved but in Jira url lookup
 

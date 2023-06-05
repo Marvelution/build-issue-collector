@@ -38,42 +38,42 @@ func NewCollectIssueCommand() *CollectIssueCommand {
 	return &CollectIssueCommand{}
 }
 
-func (config *CollectIssueCommand) SetBuildConfiguration(buildConfiguration *utils.BuildConfiguration) *CollectIssueCommand {
-	config.buildConfiguration = buildConfiguration
-	return config
+func (cmd *CollectIssueCommand) SetBuildConfiguration(buildConfiguration *utils.BuildConfiguration) *CollectIssueCommand {
+	cmd.buildConfiguration = buildConfiguration
+	return cmd
 }
 
-func (config *CollectIssueCommand) SetDotGitPath(dotGitPath string) *CollectIssueCommand {
-	config.dotGitPath = dotGitPath
-	return config
+func (cmd *CollectIssueCommand) SetDotGitPath(dotGitPath string) *CollectIssueCommand {
+	cmd.dotGitPath = dotGitPath
+	return cmd
 }
 
-func (config *CollectIssueCommand) SetIssuesConfig(issuesConfiguration *IssuesConfiguration) *CollectIssueCommand {
-	config.issuesConfiguration = issuesConfiguration
-	return config
+func (cmd *CollectIssueCommand) SetIssuesConfig(issuesConfiguration *IssuesConfiguration) *CollectIssueCommand {
+	cmd.issuesConfiguration = issuesConfiguration
+	return cmd
 }
 
-func (config *CollectIssueCommand) Run() error {
+func (cmd *CollectIssueCommand) Run() error {
 	log.Info("Reading the git branch, revision and remote URL and adding them to the build-info.")
 
-	buildName, err := config.buildConfiguration.GetBuildName()
+	buildName, err := cmd.buildConfiguration.GetBuildName()
 	if err != nil {
 		return err
 	}
-	buildNumber, err := config.buildConfiguration.GetBuildNumber()
+	buildNumber, err := cmd.buildConfiguration.GetBuildNumber()
 	if err != nil {
 		return err
 	}
 
-	err = utils.SaveBuildGeneralDetails(buildName, buildNumber, config.buildConfiguration.GetProject())
+	err = utils.SaveBuildGeneralDetails(buildName, buildNumber, cmd.buildConfiguration.GetProject())
 	if err != nil {
 		return err
 	}
 
 	// Find .git if it wasn't provided in the command.
-	if config.dotGitPath == "" {
+	if cmd.dotGitPath == "" {
 		var exists bool
-		config.dotGitPath, exists, err = fileutils.FindUpstream(".git", fileutils.Any)
+		cmd.dotGitPath, exists, err = fileutils.FindUpstream(".git", fileutils.Any)
 		if err != nil {
 			return err
 		}
@@ -83,7 +83,7 @@ func (config *CollectIssueCommand) Run() error {
 	}
 
 	// Collect URL, branch and revision into GitManager.
-	gitManager := clientutils.NewGitManager(config.dotGitPath)
+	gitManager := clientutils.NewGitManager(cmd.dotGitPath)
 	err = gitManager.ReadConfig()
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func (config *CollectIssueCommand) Run() error {
 		for _, e := range os.Environ() {
 			pair := strings.SplitN(e, "=", 2)
 			if pair[1] == vcs.Revision {
-				branchVariableName := strings.TrimSuffix(pair[0], "commitSha") + "branch"
+				branchVariableName := strings.TrimSuffix(pair[0], "commitSha") + "branchName"
 				vcs.Branch = os.Getenv(branchVariableName)
 				log.Info("Found git branch name '" + vcs.Branch + "' in environment variable: " + branchVariableName)
 			}
@@ -108,9 +108,9 @@ func (config *CollectIssueCommand) Run() error {
 
 	// Collect issues if required.
 	var issues []buildinfo.AffectedIssue
-	if config.issuesConfiguration.tracker != nil {
-		log.Debug("Collecting issues hosted on ", config.issuesConfiguration.tracker.Name)
-		issues, err = config.collectBuildIssues(vcs)
+	if cmd.issuesConfiguration.tracker != nil {
+		log.Debug("Collecting issues hosted on ", cmd.issuesConfiguration.tracker.Name)
+		issues, err = cmd.collectBuildIssues(vcs)
 		if err != nil {
 			return err
 		}
@@ -120,16 +120,16 @@ func (config *CollectIssueCommand) Run() error {
 	populateFunc := func(partial *buildinfo.Partial) {
 		partial.VcsList = append(partial.VcsList, vcs)
 
-		if config.issuesConfiguration.tracker != nil {
+		if cmd.issuesConfiguration.tracker != nil {
 			partial.Issues = &buildinfo.Issues{
-				Tracker:                &buildinfo.Tracker{Name: config.issuesConfiguration.tracker.Name, Version: ""},
-				AggregateBuildIssues:   config.issuesConfiguration.aggregate,
-				AggregationBuildStatus: config.issuesConfiguration.aggregationStatus,
+				Tracker:                &buildinfo.Tracker{Name: cmd.issuesConfiguration.tracker.Name, Version: ""},
+				AggregateBuildIssues:   cmd.issuesConfiguration.aggregate,
+				AggregationBuildStatus: cmd.issuesConfiguration.aggregationStatus,
 				AffectedIssues:         issues,
 			}
 		}
 	}
-	err = utils.SavePartialBuildInfo(buildName, buildNumber, config.buildConfiguration.GetProject(), populateFunc)
+	err = utils.SavePartialBuildInfo(buildName, buildNumber, cmd.buildConfiguration.GetProject(), populateFunc)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (config *CollectIssueCommand) Run() error {
 	return nil
 }
 
-func (config *CollectIssueCommand) collectBuildIssues(vcs buildinfo.Vcs) ([]buildinfo.AffectedIssue, error) {
+func (cmd *CollectIssueCommand) collectBuildIssues(vcs buildinfo.Vcs) ([]buildinfo.AffectedIssue, error) {
 	log.Info("Collecting build issues from VCS...")
 
 	// Check that git exists in path.
@@ -149,16 +149,16 @@ func (config *CollectIssueCommand) collectBuildIssues(vcs buildinfo.Vcs) ([]buil
 	}
 
 	// Get latest build's VCS revision from Artifactory.
-	lastVcsRevision, err := config.getLatestVcsRevision(vcs.Url)
+	lastVcsRevision, err := cmd.getLatestVcsRevision(vcs.Url)
 	if err != nil {
 		return nil, err
 	}
 
 	// Run issues collection.
-	return config.DoCollect(config.issuesConfiguration, buildinfo.Vcs{Revision: lastVcsRevision, Branch: vcs.Branch, Message: vcs.Message})
+	return cmd.DoCollect(cmd.issuesConfiguration, buildinfo.Vcs{Revision: lastVcsRevision, Branch: vcs.Branch, Message: vcs.Message})
 }
 
-func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, vcs buildinfo.Vcs) ([]buildinfo.AffectedIssue, error) {
+func (cmd *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, vcs buildinfo.Vcs) ([]buildinfo.AffectedIssue, error) {
 	var foundIssueKeys []string
 	logRegExp, err := createLogRegExpHandler(issuesConfig, &foundIssueKeys)
 	if err != nil {
@@ -185,7 +185,7 @@ func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, 
 		return nil, err
 	}
 	defer os.Chdir(wd)
-	err = os.Chdir(config.dotGitPath)
+	err = os.Chdir(cmd.dotGitPath)
 	if errorutils.CheckError(err) != nil {
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func (config *CollectIssueCommand) DoCollect(issuesConfig *IssuesConfiguration, 
 	if err != nil {
 		if _, ok := err.(RevisionRangeError); ok {
 			if len(vcs.Revision) > 0 {
-				return config.DoCollect(config.issuesConfiguration, buildinfo.Vcs{Revision: "", Branch: vcs.Branch, Message: vcs.Message})
+				return cmd.DoCollect(cmd.issuesConfiguration, buildinfo.Vcs{Revision: "", Branch: vcs.Branch, Message: vcs.Message})
 			} else {
 				// Revision not found in range. Ignore and don't collect new issues.
 				log.Info(err.Error())
@@ -306,9 +306,9 @@ func createErrRegExpHandler(lastVcsRevision string) (*gofrogcmd.CmdOutputPattern
 	return &errRegExp, nil
 }
 
-func (config *CollectIssueCommand) getLatestVcsRevision(vcsUrl string) (string, error) {
+func (cmd *CollectIssueCommand) getLatestVcsRevision(vcsUrl string) (string, error) {
 	// Get latest build's build-info from Artifactory
-	buildInfo, err := config.getLatestBuildInfo(config.issuesConfiguration)
+	buildInfo, err := cmd.getLatestBuildInfo(cmd.issuesConfiguration)
 	if err != nil {
 		return "", err
 	}
@@ -331,7 +331,7 @@ func (config *CollectIssueCommand) getLatestVcsRevision(vcsUrl string) (string, 
 }
 
 // Returns build info, or empty build info struct if not found.
-func (config *CollectIssueCommand) getLatestBuildInfo(issuesConfig *IssuesConfiguration) (*buildinfo.BuildInfo, error) {
+func (cmd *CollectIssueCommand) getLatestBuildInfo(issuesConfig *IssuesConfiguration) (*buildinfo.BuildInfo, error) {
 	// Create services manager to get build-info from Artifactory.
 	sm, err := utils.CreateServiceManager(issuesConfig.serverDetails, -1, 0, false)
 	if err != nil {
@@ -339,7 +339,7 @@ func (config *CollectIssueCommand) getLatestBuildInfo(issuesConfig *IssuesConfig
 	}
 
 	// Get latest build-info from Artifactory.
-	buildName, err := config.buildConfiguration.GetBuildName()
+	buildName, err := cmd.buildConfiguration.GetBuildName()
 	if err != nil {
 		return nil, err
 	}
