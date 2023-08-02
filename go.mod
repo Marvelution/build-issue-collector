@@ -3,7 +3,7 @@ module github.com/marvelution/ext-build-info
 go 1.19
 
 require (
-	github.com/jfrog/build-info-go v1.9.1
+	github.com/jfrog/build-info-go v1.9.6
 	github.com/jfrog/jfrog-cli-core/v2 v2.31.1
 	github.com/jfrog/jfrog-client-go v1.28.1
 )
@@ -33,7 +33,7 @@ require (
 	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.4.6 // indirect
-	github.com/jfrog/gofrog v1.2.5 // indirect
+	github.com/jfrog/gofrog v1.3.0 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/compress v1.16.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
@@ -65,7 +65,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/crypto v0.8.0 // indirect
-	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
+	golang.org/x/exp v0.0.0-20230418202329-0354be287a23 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect

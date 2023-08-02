@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jfrog/jfrog-client-go/auth"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
+	"github.com/marvelution/ext-build-info/services/jira"
 	"net/http"
 )
 
@@ -17,7 +18,7 @@ type jiraDetails struct {
 }
 
 func (js *jiraDetails) GetVersion() (string, error) {
-	info := &ServerInfo{}
+	info := &jira.ServerInfo{}
 	if err := js.GetRequest("rest/api/3/serverInfo", &info); err != nil {
 		return "", err
 	}

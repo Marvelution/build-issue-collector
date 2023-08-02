@@ -9,6 +9,8 @@ import (
 	clientConfig "github.com/jfrog/jfrog-client-go/config"
 	"github.com/jfrog/jfrog-client-go/http/jfroghttpclient"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
+	"github.com/marvelution/ext-build-info/services/common"
+	"github.com/marvelution/ext-build-info/services/pipelines"
 	"net/http"
 	"strconv"
 	"strings"
@@ -53,13 +55,30 @@ func NewPipelinesService(serverDetails utilsconfig.ServerDetails) (*PipelinesSer
 	}, nil
 }
 
-func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSteps bool) (*PipelineReport, error) {
-	pipelineReport := PipelineReport{
-		State: Successful,
+func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSteps bool) (*pipelines.PipelineReport, error) {
+	parsedRunId, err := strconv.ParseInt(runId, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	run, err := ps.GetRun(parsedRunId)
+	if err != nil {
+		return nil, err
+	}
+	pipeline, err := ps.GetPipeline(run.PipelineId)
+	if err != nil {
+		return nil, err
 	}
 
-	steps := &[]Step{}
-	err := ps.GetRequest("api/v1/steps?runIds="+runId, &steps)
+	pipelineReport := pipelines.PipelineReport{
+		Name:      pipeline.Name,
+		Branch:    pipeline.Branch,
+		RunId:     parsedRunId,
+		RunNumber: run.RunNumber,
+		State:     common.Successful,
+	}
+
+	steps := &[]pipelines.Step{}
+	err = ps.GetRequest("api/v1/steps?runIds="+runId, &steps)
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +86,14 @@ func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSte
 	for _, step := range *steps {
 		if (step.TypeCode != 2046 && step.TypeCode != 2047) || includePrePostRunSteps {
 			stepIds = append(stepIds, strconv.FormatInt(step.Id, 10))
-			state := GetState(step.StatusCode)
+			state := common.GetState(step.StatusCode)
 			if state.IsWorstThan(pipelineReport.State) {
 				pipelineReport.State = state
 			}
 		}
 	}
 
-	stepTestReports := &[]StepTestReport{}
+	stepTestReports := &[]pipelines.StepTestReport{}
 	err = ps.GetRequest("api/v1/stepTestReports?stepIds="+strings.Join(stepIds, ","), &stepTestReports)
 	if err != nil {
 		return nil, err
@@ -88,6 +107,100 @@ func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSte
 	}
 
 	return &pipelineReport, nil
+}
+
+func (ps *PipelinesService) GetRun(runId int64) (*pipelines.Run, error) {
+	runs := &[]pipelines.Run{}
+	err := ps.GetRequest("api/v1/runs?runIds="+strconv.FormatInt(runId, 10), &runs)
+	if err != nil {
+		return nil, err
+	}
+	if len(*runs) == 1 {
+		return &(*runs)[0], nil
+	} else {
+		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline run found with id %s\n", runId))
+	}
+}
+
+func (ps *PipelinesService) FindRun(attributes map[string]string) (*pipelines.Run, error) {
+	runs := &[]pipelines.Run{}
+	params := ps.CreateParams(attributes)
+	err := ps.GetRequest("api/v1/runs?"+params, &runs)
+	if err != nil {
+		return nil, err
+	}
+	if len(*runs) == 1 {
+		return &(*runs)[0], nil
+	} else {
+		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline run found with %s\n", params))
+	}
+}
+
+func (ps *PipelinesService) GetRunResourceVersion(versionId int64) (*pipelines.RunResourceVersion, error) {
+	versions := &[]pipelines.RunResourceVersion{}
+	err := ps.GetRequest("api/v1/runResourceVersions?runResourceVersionIds="+strconv.FormatInt(versionId, 10), versions)
+	if err != nil {
+		return nil, err
+	}
+	if len(*versions) == 1 {
+		return &(*versions)[0], nil
+	} else {
+		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline run resource version found with id %d\n", versionId))
+	}
+}
+
+func (ps *PipelinesService) FindRunResourceVersion(attributes map[string]string) (*pipelines.RunResourceVersion, error) {
+	versions := &[]pipelines.RunResourceVersion{}
+	params := ps.CreateParams(attributes)
+	err := ps.GetRequest("api/v1/runResourceVersions?"+params, versions)
+	if err != nil {
+		return nil, err
+	}
+	if len(*versions) == 1 {
+		return &(*versions)[0], nil
+	} else {
+		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline run resource version found with %s\n", params))
+	}
+}
+
+func (ps *PipelinesService) GetResource(resourceName string, pipelineSourceId int64, pipelineSourceBranch string) (*pipelines.Resource, error) {
+	resources := &[]pipelines.Resource{}
+	err := ps.GetRequest("api/v1/resources?names="+resourceName+"&pipelineSourceIds="+strconv.FormatInt(pipelineSourceId,
+		10)+"&pipelineSourceBranches="+pipelineSourceBranch, resources)
+	if err != nil {
+		return nil, err
+	}
+	if len(*resources) == 1 {
+		return &(*resources)[0], nil
+	} else {
+		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline resource found with name: %s sourceId: %d branch: %s\n",
+			resourceName, pipelineSourceId, pipelineSourceBranch))
+	}
+}
+
+func (ps *PipelinesService) GetResourceVersion(versionId int64, pipelineSourceBranch string) (*pipelines.ResourceVersion, error) {
+	versions := &[]pipelines.ResourceVersion{}
+	err := ps.GetRequest("api/v1/resourceVersions?resourceVersionIds="+strconv.FormatInt(versionId, 10)+"&pipelineSourceBranches="+pipelineSourceBranch, versions)
+	if err != nil {
+		return nil, err
+	}
+	if len(*versions) == 1 {
+		return &(*versions)[0], nil
+	} else {
+		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline resource version found with id: %d, branch: %s\n",
+			versionId, pipelineSourceBranch))
+	}
+}
+
+func (ps *PipelinesService) CreateParams(attributes map[string]string) string {
+	var params strings.Builder
+	for key, value := range attributes {
+		params.WriteString(key)
+		params.WriteString("=")
+		params.WriteString(value)
+		params.WriteString("&")
+	}
+	return params.String()
 }
 
 func (ps *PipelinesService) GetRequest(url string, response any) error {
@@ -105,33 +218,11 @@ func (ps *PipelinesService) GetRequest(url string, response any) error {
 	}
 }
 
-type PipelineReport struct {
-	State         State
-	TotalTests    int64 `json:"totalTests"`
-	TotalPassing  int64 `json:"totalPassing"`
-	TotalFailures int64 `json:"totalFailures"`
-	TotalErrors   int64 `json:"totalErrors"`
-	TotalSkipped  int64 `json:"totalSkipped"`
-}
-
-type Step struct {
-	Id         int64  `json:"id"`
-	PipelineId int64  `json:"pipelineId"`
-	RunId      int64  `json:"runId"`
-	StatusCode int64  `json:"statusCode"`
-	TypeCode   int    `json:"typeCode"`
-	Name       string `json:"name"`
-}
-
-type StepTestReport struct {
-	Id               int64 `json:"id"`
-	ProjectId        int64 `json:"projectId"`
-	PipelineSourceId int64 `json:"pipelineSourceId"`
-	StepId           int64 `json:"stepId"`
-	DurationSeconds  int64 `json:"durationSeconds"`
-	TotalTests       int64 `json:"totalTests"`
-	TotalPassing     int64 `json:"totalPassing"`
-	TotalFailures    int64 `json:"totalFailures"`
-	TotalErrors      int64 `json:"totalErrors"`
-	TotalSkipped     int64 `json:"totalSkipped"`
+func (ps *PipelinesService) GetPipeline(pipelineId int64) (*pipelines.Pipeline, error) {
+	pipeline := &pipelines.Pipeline{}
+	err := ps.GetRequest("api/v1/pipelines/"+strconv.FormatInt(pipelineId, 10), pipeline)
+	if err != nil {
+		return nil, err
+	}
+	return pipeline, nil
 }

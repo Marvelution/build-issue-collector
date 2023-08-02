@@ -3,15 +3,14 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
-	buildinfo "github.com/jfrog/build-info-go/entities"
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	utilsconfig "github.com/jfrog/jfrog-cli-core/v2/utils/config"
-	artservices "github.com/jfrog/jfrog-client-go/artifactory/services"
 	"github.com/jfrog/jfrog-client-go/http/httpclient"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/io/httputils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/marvelution/ext-build-info/services"
+	"github.com/marvelution/ext-build-info/services/common"
 	"net/http"
 	"os"
 	"strings"
@@ -19,7 +18,7 @@ import (
 
 type NotifySlackCommand struct {
 	buildConfiguration *utils.BuildConfiguration
-	SlackConfiguration *SlackConfiguration
+	slackConfiguration *SlackConfiguration
 }
 
 func NewNotifySlackCommand() *NotifySlackCommand {
@@ -32,61 +31,38 @@ func (cmd *NotifySlackCommand) SetBuildConfiguration(buildConfiguration *utils.B
 }
 
 func (cmd *NotifySlackCommand) SetSlackConfiguration(slackConfiguration *SlackConfiguration) *NotifySlackCommand {
-	cmd.SlackConfiguration = slackConfiguration
+	cmd.slackConfiguration = slackConfiguration
 	return cmd
 }
 
 func (cmd *NotifySlackCommand) Run() error {
 	log.Info("Collecting build-info to send to Slack.")
 
-	buildInfo, err := cmd.getBuildInfo(cmd.SlackConfiguration)
+	pipelinesService, err := services.NewPipelinesService(*cmd.slackConfiguration.serverDetails)
 	if err != nil {
 		return err
 	}
-
-	pipelinesService, err := services.NewPipelinesService(*cmd.SlackConfiguration.serverDetails)
-	if err != nil {
-		return err
-	}
-	pipelineReport, err := pipelinesService.GetPipelineReport(buildInfo.Properties["buildInfo.env.run_id"], cmd.SlackConfiguration.includePrePostRunSteps)
+	pipelineReport, err := pipelinesService.GetPipelineReport(os.Getenv("run_id"), cmd.slackConfiguration.includePrePostRunSteps)
 	if err != nil {
 		return err
 	}
 
 	var color string
 	switch pipelineReport.State {
-	case services.Successful:
+	case common.Successful:
 		color = "#40be46"
 		break
-	case services.Failed:
+	case common.Failed:
 		color = "#fc8675"
 		break
-	case services.Cancelled:
-	case services.InProgress:
-	case services.Pending:
+	case common.Cancelled:
+	case common.InProgress:
+	case common.Pending:
 		color = "#5183a0"
 		break
 	default:
 		color = ""
 		break
-	}
-
-	revisions := map[string]struct{}{}
-	var vcsInfo []string
-	for _, vcs := range buildInfo.VcsList {
-		_, processed := revisions[vcs.Revision]
-		if vcs.Revision != "" && vcs.Branch != "" && !processed {
-			revisions[vcs.Revision] = struct{}{}
-			vcsInfo = append(vcsInfo, fmt.Sprintf("`%s` @ `%s`", vcs.Branch, vcs.Revision[0:8]))
-		}
-	}
-	// Look again to add any revisions without a branch name
-	for _, vcs := range buildInfo.VcsList {
-		_, processed := revisions[vcs.Revision]
-		if !processed {
-			revisions[vcs.Revision] = struct{}{}
-			vcsInfo = append(vcsInfo, fmt.Sprintf("`%s`", vcs.Revision[0:8]))
-		}
 	}
 
 	var testReport string
@@ -97,7 +73,33 @@ func (cmd *NotifySlackCommand) Run() error {
 		testReport = ""
 	}
 
-	vcsReport := strings.Join(vcsInfo, " ")
+	var vcsReport string
+	buildInfo, err := getBuildInfo(cmd.buildConfiguration, cmd.slackConfiguration.serverDetails)
+	if err != nil {
+		buildName, _ := cmd.buildConfiguration.GetBuildName()
+		buildNumber, _ := cmd.buildConfiguration.GetBuildNumber()
+		log.Info("No build-info found for " + buildName + " #" + buildNumber + ", no data from it will ne available for the notification.")
+		vcsReport = ""
+	} else {
+		revisions := map[string]struct{}{}
+		var vcsInfo []string
+		for _, vcs := range buildInfo.VcsList {
+			_, processed := revisions[vcs.Revision]
+			if vcs.Revision != "" && vcs.Branch != "" && !processed {
+				revisions[vcs.Revision] = struct{}{}
+				vcsInfo = append(vcsInfo, fmt.Sprintf("`%s` @ `%s`", vcs.Branch, vcs.Revision[0:8]))
+			}
+		}
+		// Look again to add any revisions without a branch name
+		for _, vcs := range buildInfo.VcsList {
+			_, processed := revisions[vcs.Revision]
+			if !processed {
+				revisions[vcs.Revision] = struct{}{}
+				vcsInfo = append(vcsInfo, fmt.Sprintf("`%s`", vcs.Revision[0:8]))
+			}
+		}
+		vcsReport = strings.Join(vcsInfo, " ")
+	}
 
 	attachment := SlackAttachment{
 		Color: color,
@@ -106,7 +108,7 @@ func (cmd *NotifySlackCommand) Run() error {
 			Text: SlackText{
 				Type: "mrkdwn",
 				Text: fmt.Sprintf("<%s|%s #%s> *%s* for %s%s",
-					buildInfo.BuildUrl, buildInfo.Name, buildInfo.Number, pipelineReport.State, vcsReport, testReport),
+					os.Getenv("JFROG_CLI_BUILD_URL"), pipelineReport.Name, pipelineReport.RunNumber, pipelineReport.State, vcsReport, testReport),
 			},
 		}},
 	}
@@ -118,7 +120,7 @@ func (cmd *NotifySlackCommand) Run() error {
 		return err
 	}
 
-	url := os.Getenv("int_" + cmd.SlackConfiguration.slack + "_url")
+	url := os.Getenv("int_" + cmd.slackConfiguration.slack + "_url")
 	log.Debug("Posting message to "+url, string(content))
 
 	client, err := httpclient.ClientBuilder().Build()
@@ -139,35 +141,6 @@ func (cmd *NotifySlackCommand) Run() error {
 	} else {
 		return errorutils.CheckErrorf(fmt.Sprintf("Failed posting message to Slack: %s.\n%s\n", resp.Status, body))
 	}
-}
-
-// Returns build info, or empty build info struct if not found.
-func (cmd *NotifySlackCommand) getBuildInfo(jiraConfig *SlackConfiguration) (*buildinfo.BuildInfo, error) {
-	// Create services manager to get build-info from Artifactory.
-	sm, err := utils.CreateServiceManager(jiraConfig.serverDetails, -1, 0, false)
-	if err != nil {
-		return nil, err
-	}
-
-	buildName, err := cmd.buildConfiguration.GetBuildName()
-	if err != nil {
-		return nil, err
-	}
-	buildNumber, err := cmd.buildConfiguration.GetBuildNumber()
-	if err != nil {
-		return nil, err
-	}
-
-	buildInfoParams := artservices.BuildInfoParams{BuildName: buildName, BuildNumber: buildNumber}
-	publishedBuildInfo, found, err := sm.GetBuildInfo(buildInfoParams)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return &buildinfo.BuildInfo{}, nil
-	}
-
-	return &publishedBuildInfo.BuildInfo, nil
 }
 
 type SlackConfiguration struct {

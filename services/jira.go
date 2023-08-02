@@ -11,9 +11,9 @@ import (
 	clientutils "github.com/jfrog/jfrog-client-go/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
+	"github.com/marvelution/ext-build-info/services/jira"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type JiraService struct {
@@ -70,40 +70,41 @@ func NewOAuthJiraService(Url, ClientId, Secret string, dryRun bool) (*JiraServic
 		details.SetClient(client)
 	}
 
-	request := &AccessTokenRequest{
-		Audience:     "api.atlassian.com",
-		GrantType:    "client_credentials",
-		ClientId:     ClientId,
-		ClientSecret: Secret,
-	}
+	if !dryRun {
+		request := &jira.AccessTokenRequest{
+			Audience:     "api.atlassian.com",
+			GrantType:    "client_credentials",
+			ClientId:     ClientId,
+			ClientSecret: Secret,
+		}
 
-	content, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
-
-	clientDetails := details.CreateHttpClientDetails()
-	utils.SetContentType("application/json", &clientDetails.Headers)
-	resp, body, err := client.SendPost("https://api.atlassian.com/oauth/token", content, &clientDetails)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode == http.StatusOK {
-		response := &AccessTokenResponse{}
-		if err := json.Unmarshal(body, &response); err != nil {
+		content, err := json.Marshal(request)
+		if err != nil {
 			return nil, err
 		}
-		details.SetAccessToken(response.AccessToken)
 
-		return &JiraService{client: client, ServiceDetails: details, dryRun: dryRun}, nil
-	} else {
-		return nil, errorutils.CheckErrorf(fmt.Sprintf("Failed getting an access token: %s.\n%s\n", resp.Status, body))
+		clientDetails := details.CreateHttpClientDetails()
+		utils.SetContentType("application/json", &clientDetails.Headers)
+		resp, body, err := client.SendPost("https://api.atlassian.com/oauth/token", content, &clientDetails)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			response := &jira.AccessTokenResponse{}
+			if err := json.Unmarshal(body, &response); err != nil {
+				return nil, err
+			}
+			details.SetAccessToken(response.AccessToken)
+		} else {
+			return nil, errorutils.CheckErrorf(fmt.Sprintf("Failed getting an access token: %s.\n%s\n", resp.Status, body))
+		}
 	}
+	return &JiraService{client: client, ServiceDetails: details, dryRun: dryRun}, nil
 }
 
 func (js *JiraService) GetVersion() (string, error) {
-	info := &ServerInfo{}
+	info := &jira.ServerInfo{}
 	if err := js.GetRequest("rest/api/3/serverInfo", &info); err != nil {
 		return "", err
 	}
@@ -114,7 +115,7 @@ func (js *JiraService) GetCloudId() (string, error) {
 	if js.cloudId != "" {
 		return js.cloudId, nil
 	} else {
-		info := &CloudIdResponse{}
+		info := &jira.CloudIdResponse{}
 		if err := js.GetRequest("_edge/tenant_info", &info); err != nil {
 			return "", err
 		}
@@ -141,7 +142,7 @@ func (js *JiraService) GetIssues(foundIssueKeys []string) ([]buildinfo.AffectedI
 		return []buildinfo.AffectedIssue{}, nil
 	}
 
-	request := &SearchRequest{
+	request := &jira.SearchRequest{
 		Jql:           "issue IN (" + strings.Join(foundIssueKeys[:], ",") + ")",
 		Fields:        []string{"key", "summary"},
 		StartAt:       0,
@@ -164,7 +165,7 @@ func (js *JiraService) GetIssues(foundIssueKeys []string) ([]buildinfo.AffectedI
 	}
 
 	if resp.StatusCode == http.StatusOK {
-		searchResult := &SearchResult{}
+		searchResult := &jira.SearchResult{}
 		if err := json.Unmarshal(body, &searchResult); err != nil {
 			return nil, err
 		}
@@ -186,13 +187,13 @@ func (js *JiraService) GetIssues(foundIssueKeys []string) ([]buildinfo.AffectedI
 	}
 }
 
-func (js *JiraService) SendBuildInfo(buildInfo BuildInfo) (*BuildInfoResponse, error) {
-	request := BuildInfoRequest{
+func (js *JiraService) SendBuildInfo(buildInfo jira.BuildInfo) (*jira.BuildInfoResponse, error) {
+	request := jira.BuildInfoRequest{
 		Properties: map[string]string{},
-		Builds: []BuildInfo{
+		Builds: []jira.BuildInfo{
 			buildInfo,
 		},
-		ProviderMetadata: ProviderMetadata{
+		ProviderMetadata: jira.ProviderMetadata{
 			Product: "Jfrog Pipelines",
 		},
 	}
@@ -212,7 +213,14 @@ func (js *JiraService) SendBuildInfo(buildInfo BuildInfo) (*BuildInfoResponse, e
 	url := "https://api.atlassian.com/jira/builds/0.1/cloud/" + cloudId + "/bulk"
 	if js.dryRun {
 		log.Info("Dry-running request to Jira ("+url+"):", string(content))
-		return nil, nil
+		return &jira.BuildInfoResponse{
+			AcceptedBuilds: []jira.BuildKey{{
+				PipelineId:  buildInfo.PipelineId,
+				BuildNumber: buildInfo.BuildNumber,
+			}},
+			RejectedBuilds:   nil,
+			UnknownIssueKeys: nil,
+		}, nil
 	} else {
 		log.Debug("Sending build-info to Jira using request ("+url+"):", string(content))
 		resp, body, err := js.client.SendPost(url, content, &clientDetails)
@@ -221,7 +229,7 @@ func (js *JiraService) SendBuildInfo(buildInfo BuildInfo) (*BuildInfoResponse, e
 		}
 
 		if resp.StatusCode == http.StatusAccepted {
-			response := &BuildInfoResponse{}
+			response := &jira.BuildInfoResponse{}
 			if err := json.Unmarshal(body, &response); err != nil {
 				return nil, err
 			}
@@ -235,162 +243,60 @@ func (js *JiraService) SendBuildInfo(buildInfo BuildInfo) (*BuildInfoResponse, e
 	}
 }
 
-type ServerInfo struct {
-	Version        string `json:"version"`
-	VersionNumbers []int  `json:"versionNumbers"`
-}
-
-type CloudIdResponse struct {
-	CloudId string `json:"cloudId"`
-}
-
-type SearchRequest struct {
-	Jql           string   `json:"jql,omitempty"`
-	StartAt       int      `json:"startAt,omitempty"`
-	MaxResults    int      `json:"maxResults,omitempty"`
-	Fields        []string `json:"fields,omitempty"`
-	ValidateQuery string   `json:"validateQuery,omitempty"`
-}
-
-type SearchResult struct {
-	Expand          string   `json:"expand,omitempty"`
-	StartAt         int      `json:"startAt,omitempty"`
-	MaxResults      int      `json:"maxResults,omitempty"`
-	Total           int      `json:"total,omitempty"`
-	Issues          []Issue  `json:"issues,omitempty"`
-	WarningMessages []string `json:"warningMessages,omitempty"`
-}
-
-type Issue struct {
-	Key    string      `json:"key"`
-	Fields IssueFields `json:"fields"`
-}
-
-type IssueFields struct {
-	Summary string `json:"summary"`
-}
-
-type AccessTokenRequest struct {
-	Audience     string `json:"audience"`
-	GrantType    string `json:"grant_type"`
-	ClientId     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-}
-
-type AccessTokenResponse struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
-	TokenType   string `json:"token_type"`
-	Scope       string `json:"scope"`
-}
-
-type BuildInfoRequest struct {
-	Properties       map[string]string `json:"properties,omitempty"`
-	Builds           []BuildInfo       `json:"builds"`
-	ProviderMetadata ProviderMetadata  `json:"providerMetadata"`
-}
-
-type BuildInfo struct {
-	SchemaVersion        string      `json:"schemaVersion,omitempty"`
-	PipelineId           string      `json:"pipelineId"`
-	BuildNumber          int64       `json:"buildNumber"`
-	UpdateSequenceNumber int64       `json:"updateSequenceNumber"`
-	DisplayName          string      `json:"displayName"`
-	Description          string      `json:"description,omitempty"`
-	Label                string      `json:"label,omitempty"`
-	Url                  string      `json:"url"`
-	State                State       `json:"state"`
-	LastUpdated          time.Time   `json:"lastUpdated"`
-	IssueKeys            []string    `json:"issueKeys"`
-	TestInfo             *TestInfo   `json:"testInfo,omitempty"`
-	References           []Reference `json:"references,omitempty"`
-}
-
-type State string
-
-const (
-	Successful State = "successful"
-	Failed     State = "failed"
-	Cancelled  State = "cancelled"
-	InProgress State = "in_progress"
-	Pending    State = "pending"
-	Unknown    State = "unknown"
-)
-
-var BestToWorst = []State{Successful, Failed, Cancelled, InProgress, Pending, Unknown}
-
-func GetState(code int64) State {
-	if code == 4000 || code == 4005 {
-		return Pending
-	} else if code == 4001 {
-		return InProgress
-	} else if code == 4002 {
-		return Successful
-	} else if code == 4003 || code == 4004 || code == 4007 {
-		return Failed
-	} else if code == 4006 || code == 4008 {
-		return Cancelled
-	} else {
-		return Unknown
+func (js *JiraService) SendDeploymentInfo(deploymentInfo jira.DeploymentInfo) (*jira.DeploymentInfoResponse, error) {
+	request := jira.DeploymentInfoRequest{
+		Properties: map[string]string{},
+		Deployments: []jira.DeploymentInfo{
+			deploymentInfo,
+		},
+		ProviderMetadata: jira.ProviderMetadata{
+			Product: "Jfrog Pipelines",
+		},
 	}
-}
+	content, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
 
-func (s *State) Index() int {
-	for index, state := range BestToWorst {
-		if s == &state {
-			return index
+	clientDetails := js.CreateHttpClientDetails()
+	utils.SetContentType("application/json", &clientDetails.Headers)
+
+	cloudId, err := js.GetCloudId()
+	if err != nil {
+		return nil, err
+	}
+
+	url := "https://api.atlassian.com/jira/deployments/0.1/cloud/" + cloudId + "/bulk"
+	if js.dryRun {
+		log.Info("Dry-running request to Jira ("+url+"):", string(content))
+		return &jira.DeploymentInfoResponse{
+			AcceptedDeployments: []jira.DeploymentKey{{
+				PipelineId:               deploymentInfo.Pipeline.Id,
+				EnvironmentId:            deploymentInfo.Environment.Id,
+				DeploymentSequenceNumber: deploymentInfo.DeploymentSequenceNumber,
+			}},
+			RejectedDeployments: nil,
+			UnknownIssueKeys:    nil,
+			UnknownAssociations: nil,
+		}, nil
+	} else {
+		log.Debug("Sending deployment-info to Jira using request ("+url+"):", string(content))
+		resp, body, err := js.client.SendPost(url, content, &clientDetails)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode == http.StatusAccepted {
+			response := &jira.DeploymentInfoResponse{}
+			if err := json.Unmarshal(body, &response); err != nil {
+				return nil, err
+			}
+
+			log.Debug(fmt.Sprintf("Response from Jira: %s.\n%s\n", resp.Status, body))
+
+			return response, nil
+		} else {
+			return nil, errorutils.CheckErrorf(fmt.Sprintf("Response from Jira: %s.\n%s\n", resp.Status, body))
 		}
 	}
-	return -1
-}
-
-func (s *State) IsWorstThan(state State) bool {
-	return s.Index() > state.Index()
-}
-
-type TestInfo struct {
-	TotalNumber   int64 `json:"totalNumber"`
-	NumberPassed  int64 `json:"numberPassed"`
-	NumberFailed  int64 `json:"numberFailed"`
-	NumberSkipped int64 `json:"numberSkipped,omitempty"`
-}
-
-type Reference struct {
-	Commit *Commit `json:"commit,omitempty"`
-	Ref    *Ref    `json:"ref,omitempty"`
-}
-
-type Commit struct {
-	Id            string `json:"id"`
-	RepositoryUri string `json:"repositoryUri"`
-}
-
-type Ref struct {
-	Name string `json:"name"`
-	Uri  string `json:"uri"`
-}
-
-type ProviderMetadata struct {
-	Product string `json:"product"`
-}
-
-type BuildInfoResponse struct {
-	AcceptedBuilds   []BuildKey      `json:"acceptedBuilds"`
-	RejectedBuilds   []RejectedBuild `json:"rejectedBuilds"`
-	UnknownIssueKeys []string        `json:"unknownIssueKeys"`
-}
-
-type BuildKey struct {
-	PipelineId  string `json:"pipelineId"`
-	BuildNumber int64  `json:"buildNumber"`
-}
-
-type RejectedBuild struct {
-	Key    BuildKey `json:"key"`
-	Errors []Error  `json:"errors"`
-}
-
-type Error struct {
-	Message      string `json:"message"`
-	ErrorTraceId string `json:"errorTraceId"`
 }

@@ -1,15 +1,13 @@
 package commands
 
 import (
-	buildinfo "github.com/jfrog/build-info-go/entities"
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
-	utilsconfig "github.com/jfrog/jfrog-cli-core/v2/utils/config"
-	artservices "github.com/jfrog/jfrog-client-go/artifactory/services"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/marvelution/ext-build-info/services"
+	"github.com/marvelution/ext-build-info/services/common"
+	"github.com/marvelution/ext-build-info/services/jira"
 	"github.com/marvelution/ext-build-info/util"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -17,35 +15,35 @@ import (
 
 type SendBuildInfoCommand struct {
 	buildConfiguration *utils.BuildConfiguration
-	JiraConfiguration  *JiraConfiguration
+	jiraConfiguration  *JiraConfiguration
 }
 
 func NewSendBuildInfoCommand() *SendBuildInfoCommand {
 	return &SendBuildInfoCommand{}
 }
 
-func (config *SendBuildInfoCommand) SetBuildConfiguration(buildConfiguration *utils.BuildConfiguration) *SendBuildInfoCommand {
-	config.buildConfiguration = buildConfiguration
-	return config
+func (cmd *SendBuildInfoCommand) SetBuildConfiguration(buildConfiguration *utils.BuildConfiguration) *SendBuildInfoCommand {
+	cmd.buildConfiguration = buildConfiguration
+	return cmd
 }
 
-func (config *SendBuildInfoCommand) SetJiraConfiguration(jiraConfiguration *JiraConfiguration) *SendBuildInfoCommand {
-	config.JiraConfiguration = jiraConfiguration
-	return config
+func (cmd *SendBuildInfoCommand) SetJiraConfiguration(jiraConfiguration *JiraConfiguration) *SendBuildInfoCommand {
+	cmd.jiraConfiguration = jiraConfiguration
+	return cmd
 }
 
-func (config *SendBuildInfoCommand) Run() error {
+func (cmd *SendBuildInfoCommand) Run() error {
 	log.Info("Collecting build-info to send to Jira.")
 
-	buildInfo, err := config.getBuildInfo(config.JiraConfiguration)
+	buildInfo, err := getBuildInfo(cmd.buildConfiguration, cmd.jiraConfiguration.serverDetails)
 	if err != nil {
 		return err
 	}
 
 	if buildInfo.Issues != nil && len(buildInfo.Issues.AffectedIssues) > 0 {
 		// We have issues, lets send the build-info
-		client, err := services.NewOAuthJiraService(config.JiraConfiguration.jiraUrl, config.JiraConfiguration.jiraClientId,
-			config.JiraConfiguration.jiraSecret, config.JiraConfiguration.dryRun)
+		client, err := services.NewOAuthJiraService(cmd.jiraConfiguration.jiraUrl, cmd.jiraConfiguration.jiraClientId,
+			cmd.jiraConfiguration.jiraSecret, cmd.jiraConfiguration.dryRun)
 		if err != nil {
 			return err
 		}
@@ -57,42 +55,47 @@ func (config *SendBuildInfoCommand) Run() error {
 
 		var issueKeys []string
 		for _, issue := range buildInfo.Issues.AffectedIssues {
-			issueKeys = append(issueKeys, issue.Key)
+			if !issue.Aggregated {
+				log.Info("Including issue " + issue.Key)
+				issueKeys = append(issueKeys, issue.Key)
+			} else {
+				log.Info("Skipping issue " + issue.Key + " since the issue is aggregated from a previous build")
+			}
 		}
-		var references []services.Reference
+		var references []jira.Reference
 		for _, vcs := range buildInfo.VcsList {
-			references = append(references, services.Reference{
-				Commit: &services.Commit{
+			references = append(references, jira.Reference{
+				Commit: &jira.Commit{
 					Id:            vcs.Revision,
 					RepositoryUri: util.GetHttpsVcsUrl(vcs.Url),
 				},
 			})
 		}
 
-		jiraBuildInfo := services.BuildInfo{
+		jiraBuildInfo := jira.BuildInfo{
 			SchemaVersion:        "1.0",
 			PipelineId:           buildInfo.Name,
 			BuildNumber:          buildNumber,
 			UpdateSequenceNumber: time.Now().UnixMilli(),
 			DisplayName:          buildInfo.Name + " #" + buildInfo.Number,
 			Url:                  buildInfo.BuildUrl,
-			State:                services.Unknown,
+			State:                common.Unknown,
 			LastUpdated:          time.Now(),
 			IssueKeys:            issueKeys,
 			References:           references,
 		}
 
-		pipelinesService, err := services.NewPipelinesService(*config.JiraConfiguration.serverDetails)
+		pipelinesService, err := services.NewPipelinesService(*cmd.jiraConfiguration.serverDetails)
 		if err != nil {
 			return err
 		}
-		pipelineReport, err := pipelinesService.GetPipelineReport(buildInfo.Properties["buildInfo.env.run_id"], config.JiraConfiguration.includePrePostRunSteps)
+		pipelineReport, err := pipelinesService.GetPipelineReport(buildInfo.Properties["buildInfo.env.run_id"], cmd.jiraConfiguration.includePrePostRunSteps)
 		if err != nil {
 			return err
 		}
 		if pipelineReport != nil {
 			jiraBuildInfo.State = pipelineReport.State
-			jiraBuildInfo.TestInfo = &services.TestInfo{
+			jiraBuildInfo.TestInfo = &jira.TestInfo{
 				TotalNumber:   pipelineReport.TotalTests,
 				NumberPassed:  pipelineReport.TotalPassing,
 				NumberFailed:  pipelineReport.TotalFailures + pipelineReport.TotalErrors,
@@ -120,104 +123,10 @@ func (config *SendBuildInfoCommand) Run() error {
 		if len(response.UnknownIssueKeys) > 0 {
 			log.Warn("The following issues are unknown by Jira: " + strings.Join(response.UnknownIssueKeys, ","))
 		}
-		if len(response.RejectedBuilds) > 0 && config.JiraConfiguration.failOnReject {
+		if len(response.RejectedBuilds) > 0 && cmd.jiraConfiguration.failOnReject {
 			return errorutils.CheckErrorf("There are " + strconv.Itoa(len(response.RejectedBuilds)) + " rejected builds")
 		}
 	}
 
-	return nil
-}
-
-// Returns build info, or empty build info struct if not found.
-func (config *SendBuildInfoCommand) getBuildInfo(jiraConfig *JiraConfiguration) (*buildinfo.BuildInfo, error) {
-	// Create services manager to get build-info from Artifactory.
-	sm, err := utils.CreateServiceManager(jiraConfig.serverDetails, -1, 0, false)
-	if err != nil {
-		return nil, err
-	}
-
-	buildName, err := config.buildConfiguration.GetBuildName()
-	if err != nil {
-		return nil, err
-	}
-	buildNumber, err := config.buildConfiguration.GetBuildNumber()
-	if err != nil {
-		return nil, err
-	}
-
-	buildInfoParams := artservices.BuildInfoParams{BuildName: buildName, BuildNumber: buildNumber}
-	publishedBuildInfo, found, err := sm.GetBuildInfo(buildInfoParams)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return &buildinfo.BuildInfo{}, nil
-	}
-
-	return &publishedBuildInfo.BuildInfo, nil
-}
-
-type JiraConfiguration struct {
-	serverID               string
-	serverDetails          *utilsconfig.ServerDetails
-	jiraID                 string
-	jiraUrl                string
-	jiraClientId           string
-	jiraSecret             string
-	dryRun                 bool
-	includePrePostRunSteps bool
-	failOnReject           bool
-}
-
-func (jc *JiraConfiguration) SetServerID(serverID string) *JiraConfiguration {
-	jc.serverID = serverID
-	return jc
-}
-
-func (jc *JiraConfiguration) SetJiraID(jiraID string) *JiraConfiguration {
-	jc.jiraID = jiraID
-	return jc
-}
-
-func (jc *JiraConfiguration) SetJiraDetails(url, clientId, secret string) *JiraConfiguration {
-	jc.jiraUrl = url
-	jc.jiraClientId = clientId
-	jc.jiraSecret = secret
-	return jc
-}
-
-func (jc *JiraConfiguration) SetDryRun(dryRun bool) *JiraConfiguration {
-	jc.dryRun = dryRun
-	return jc
-}
-
-func (jc *JiraConfiguration) SetIncludePrePostRunSteps(includePrePostRunSteps bool) *JiraConfiguration {
-	jc.includePrePostRunSteps = includePrePostRunSteps
-	return jc
-}
-
-func (jc *JiraConfiguration) SetFailOnReject(failOnReject bool) *JiraConfiguration {
-	jc.failOnReject = failOnReject
-	return jc
-}
-
-func (jc *JiraConfiguration) ValidateJiraConfiguration() (err error) {
-	if jc.jiraUrl == "" {
-		log.Debug("Loading Jira details from integration ", jc.jiraID)
-		jc.jiraUrl = os.Getenv("int_" + jc.jiraID + "_url")
-		jc.jiraClientId = os.Getenv("int_" + jc.jiraID + "_username")
-		jc.jiraSecret = os.Getenv("int_" + jc.jiraID + "_token")
-	}
-
-	if jc.jiraUrl == "" || jc.jiraClientId == "" || jc.jiraSecret == "" {
-		return errorutils.CheckErrorf("Missing Jira details")
-	}
-
-	// If no server-id provided, use default server.
-	serverDetails, err := utilsconfig.GetSpecificConfig(jc.serverID, true, false)
-	if err != nil {
-		return err
-	}
-	jc.serverDetails = serverDetails
 	return nil
 }
