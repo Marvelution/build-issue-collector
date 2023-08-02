@@ -1,3 +1,6 @@
+## 1.5.2 (August 3, 2023)
+- Resolved number formatting bug in notify-slack command
+
 ## 1.5.1 (August 2, 2023)
 - Use pipeline run state in deployment-info
 

@@ -107,7 +107,7 @@ func (cmd *NotifySlackCommand) Run() error {
 			Type: "section",
 			Text: SlackText{
 				Type: "mrkdwn",
-				Text: fmt.Sprintf("<%s|%s #%s> *%s* for %s%s",
+				Text: fmt.Sprintf("<%s|%s #%d> *%s* for %s%s",
 					os.Getenv("JFROG_CLI_BUILD_URL"), pipelineReport.Name, pipelineReport.RunNumber, pipelineReport.State, vcsReport, testReport),
 			},
 		}},
