@@ -7,7 +7,6 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/marvelution/ext-build-info/services"
-	"github.com/marvelution/ext-build-info/services/common"
 	"github.com/marvelution/ext-build-info/services/jira"
 	"github.com/marvelution/ext-build-info/services/pipelines"
 	"github.com/marvelution/ext-build-info/util"
@@ -128,6 +127,8 @@ func (cmd *SendDeploymentInfoCommand) Run() error {
 			return err
 		}
 
+		state, _, _ := pipelinesService.GetRunState(currentRun.Id, cmd.jiraConfiguration.includePrePostRunSteps)
+
 		jiraDeploymentInfo := jira.DeploymentInfo{
 			SchemaVersion:            "1.0",
 			DeploymentSequenceNumber: cmd.deploymentInfo.runNumber,
@@ -140,7 +141,7 @@ func (cmd *SendDeploymentInfoCommand) Run() error {
 			Url:         cmd.deploymentInfo.url,
 			Description: "Deployment of " + buildInfo.Name + " #" + buildInfo.Number + " to " + cmd.deploymentInfo.environment,
 			LastUpdated: time.Now(),
-			State:       cmd.deploymentInfo.state,
+			State:       state,
 			Pipeline:    cmd.deploymentInfo.GetPipeline(),
 			Environment: cmd.deploymentInfo.GetEnvironment(),
 		}
@@ -208,10 +209,9 @@ type DeploymentInfo struct {
 	runNumber   int64
 	url         string
 	environment string
-	state       common.State
 }
 
-func NewDeploymentInfo(environment string, state common.State) *DeploymentInfo {
+func NewDeploymentInfo(environment string) *DeploymentInfo {
 	runId, err := strconv.ParseInt(os.Getenv("run_id"), 10, 64)
 	if err != nil {
 		panic(err)
@@ -226,7 +226,6 @@ func NewDeploymentInfo(environment string, state common.State) *DeploymentInfo {
 		runNumber:   runNumber,
 		url:         os.Getenv("JFROG_CLI_BUILD_URL"),
 		environment: environment,
-		state:       state,
 	}
 }
 

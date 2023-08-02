@@ -1,3 +1,6 @@
+## 1.5.1 (August 2, 2023)
+- Use pipeline run state in deployment-info
+
 ## 1.5.0 (August 2, 2023)
 - Added command to send deployment-info to Jira Cloud
 

@@ -77,21 +77,11 @@ func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSte
 		State:     common.Successful,
 	}
 
-	steps := &[]pipelines.Step{}
-	err = ps.GetRequest("api/v1/steps?runIds="+runId, &steps)
+	state, stepIds, err := ps.GetRunState(parsedRunId, includePrePostRunSteps)
 	if err != nil {
 		return nil, err
 	}
-	var stepIds []string
-	for _, step := range *steps {
-		if (step.TypeCode != 2046 && step.TypeCode != 2047) || includePrePostRunSteps {
-			stepIds = append(stepIds, strconv.FormatInt(step.Id, 10))
-			state := common.GetState(step.StatusCode)
-			if state.IsWorstThan(pipelineReport.State) {
-				pipelineReport.State = state
-			}
-		}
-	}
+	pipelineReport.State = state
 
 	stepTestReports := &[]pipelines.StepTestReport{}
 	err = ps.GetRequest("api/v1/stepTestReports?stepIds="+strings.Join(stepIds, ","), &stepTestReports)
@@ -107,6 +97,26 @@ func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSte
 	}
 
 	return &pipelineReport, nil
+}
+
+func (ps *PipelinesService) GetRunState(runId int64, includePrePostRunSteps bool) (common.State, []string, error) {
+	steps := &[]pipelines.Step{}
+	err := ps.GetRequest("api/v1/steps?runIds="+strconv.FormatInt(runId, 10), &steps)
+	if err != nil {
+		return common.Unknown, nil, err
+	}
+	finalState := common.Successful
+	var stepIds []string
+	for _, step := range *steps {
+		if (step.TypeCode != 2046 && step.TypeCode != 2047) || includePrePostRunSteps {
+			stepIds = append(stepIds, strconv.FormatInt(step.Id, 10))
+			state := common.GetState(step.StatusCode)
+			if state.IsWorstThan(finalState) {
+				finalState = state
+			}
+		}
+	}
+	return finalState, stepIds, nil
 }
 
 func (ps *PipelinesService) GetRun(runId int64) (*pipelines.Run, error) {

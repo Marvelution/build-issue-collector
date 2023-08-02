@@ -8,7 +8,6 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/marvelution/ext-build-info/commands"
-	"github.com/marvelution/ext-build-info/services/common"
 	"os"
 	"strconv"
 )
@@ -17,7 +16,7 @@ func main() {
 	plugins.PluginMain(components.App{
 		Name:        "ext-build-info",
 		Description: "Extended build info.",
-		Version:     "v1.5.0",
+		Version:     "v1.5.1",
 		Commands: []components.Command{
 			{
 				Name:        "collect-issues",
@@ -223,10 +222,6 @@ func main() {
 					components.StringFlag{
 						Name:        "environment",
 						Description: "The environment that the deployment targeted.",
-					},
-					components.StringFlag{
-						Name:        "state",
-						Description: "The state of the deployment.",
 					},
 				},
 				Arguments: []components.Argument{
@@ -442,8 +437,7 @@ func CreateDeploymentInfo(c *components.Context) (*commands.DeploymentInfo, erro
 	if environment == "" {
 		return nil, errorutils.CheckErrorf("Missing deployment environment")
 	}
-	state := common.GetStateByName(c.GetStringFlagValue("state"))
-	return commands.NewDeploymentInfo(environment, state), nil
+	return commands.NewDeploymentInfo(environment), nil
 }
 
 func CreateSlackConfiguration(c *components.Context) *commands.SlackConfiguration {
