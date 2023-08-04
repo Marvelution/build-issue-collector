@@ -2,7 +2,6 @@ package common
 
 import (
 	"github.com/jfrog/build-info-go/entities"
-	"strings"
 )
 
 type State string
@@ -34,30 +33,9 @@ func GetState(code int64) State {
 	}
 }
 
-func GetStateByName(name string) State {
-	if name == "" {
-		return Successful
-	} else {
-		switch strings.ToLower(name) {
-		case "successful":
-			return Successful
-		case "failed":
-			return Failed
-		case "cancelled":
-			return Cancelled
-		case "in_progress":
-			return InProgress
-		case "pending":
-			return Pending
-		default:
-			return Unknown
-		}
-	}
-}
-
 func (s *State) Index() int {
 	for index, state := range BestToWorst {
-		if s == &state {
+		if *s == state {
 			return index
 		}
 	}

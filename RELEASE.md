@@ -1,3 +1,6 @@
+## 1.5.3 (August 4, 2023)
+- Resolved pipeline final state check error
+
 ## 1.5.2 (August 3, 2023)
 - Resolved number formatting bug in notify-slack command
 

@@ -9,6 +9,7 @@ import (
 	clientConfig "github.com/jfrog/jfrog-client-go/config"
 	"github.com/jfrog/jfrog-client-go/http/jfroghttpclient"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
+	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/marvelution/ext-build-info/services/common"
 	"github.com/marvelution/ext-build-info/services/pipelines"
 	"net/http"
@@ -111,6 +112,7 @@ func (ps *PipelinesService) GetRunState(runId int64, includePrePostRunSteps bool
 		if (step.TypeCode != 2046 && step.TypeCode != 2047) || includePrePostRunSteps {
 			stepIds = append(stepIds, strconv.FormatInt(step.Id, 10))
 			state := common.GetState(step.StatusCode)
+			log.Debug("Step "+step.Name+" resulted", step.StatusCode, state)
 			if state.IsWorstThan(finalState) {
 				finalState = state
 			}
