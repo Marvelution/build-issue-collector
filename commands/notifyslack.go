@@ -11,8 +11,11 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/marvelution/ext-build-info/services"
 	"github.com/marvelution/ext-build-info/services/common"
+	"github.com/marvelution/ext-build-info/services/xray"
+	"golang.org/x/exp/slices"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -47,75 +50,129 @@ func (cmd *NotifySlackCommand) Run() error {
 		return err
 	}
 
-	var color string
-	switch pipelineReport.State {
-	case common.Successful:
-		color = "#40be46"
-		break
-	case common.Failed:
-		color = "#fc8675"
-		break
-	case common.Cancelled:
-	case common.InProgress:
-	case common.Pending:
-		color = "#5183a0"
-		break
-	default:
-		color = ""
-		break
-	}
-
-	var testReport string
-	if pipelineReport.TotalFailures > 0 || pipelineReport.TotalErrors > 0 {
-		testReport = fmt.Sprintf("\\n%d / %d tests failed", pipelineReport.TotalFailures+pipelineReport.TotalErrors,
-			pipelineReport.TotalTests)
-	} else {
-		testReport = ""
-	}
-
-	var vcsReport string
-	buildInfo, err := getBuildInfo(cmd.buildConfiguration, cmd.slackConfiguration.serverDetails)
-	if err != nil {
-		buildName, _ := cmd.buildConfiguration.GetBuildName()
-		buildNumber, _ := cmd.buildConfiguration.GetBuildNumber()
-		log.Info("No build-info found for " + buildName + " #" + buildNumber + ", no data from it will ne available for the notification.")
-		vcsReport = ""
-	} else {
-		revisions := map[string]struct{}{}
-		var vcsInfo []string
-		for _, vcs := range buildInfo.VcsList {
-			_, processed := revisions[vcs.Revision]
-			if vcs.Revision != "" && vcs.Branch != "" && !processed {
-				revisions[vcs.Revision] = struct{}{}
-				vcsInfo = append(vcsInfo, fmt.Sprintf("`%s` @ `%s`", vcs.Branch, vcs.Revision[0:8]))
-			}
+	icon := ""
+	if pipelineReport.State == common.Failed {
+		if pipelineReport.TestReport.TotalFailures > 0 || pipelineReport.TestReport.TotalErrors > 0 {
+			icon = ":bangbang:"
+		} else {
+			icon = ":interrobang:"
 		}
-		// Look again to add any revisions without a branch name
-		for _, vcs := range buildInfo.VcsList {
-			_, processed := revisions[vcs.Revision]
-			if !processed {
-				revisions[vcs.Revision] = struct{}{}
-				vcsInfo = append(vcsInfo, fmt.Sprintf("`%s`", vcs.Revision[0:8]))
-			}
-		}
-		vcsReport = strings.Join(vcsInfo, " ")
 	}
 
-	attachment := SlackAttachment{
-		Color: color,
+	message := SlackMessage{
 		Blocks: []SlackBlock{{
 			Type: "section",
 			Text: SlackText{
 				Type: "mrkdwn",
-				Text: fmt.Sprintf("<%s|%s #%d> *%s* for %s%s",
-					os.Getenv("JFROG_CLI_BUILD_URL"), pipelineReport.Name, pipelineReport.RunNumber, pipelineReport.State, vcsReport, testReport),
+				Text: fmt.Sprintf("%s <%s|%s #%d> *%s*",
+					icon, os.Getenv("JFROG_CLI_BUILD_URL"), pipelineReport.Name, pipelineReport.RunNumber, pipelineReport.State),
 			},
 		}},
+		Attachments: []SlackAttachment{},
 	}
 
-	content, err := json.Marshal(SlackMessage{
-		Attachments: []SlackAttachment{attachment},
-	})
+	var vcsInfo []string
+	shaData := pipelineReport.RunResourceVersion.ResourceVersionContentPropertyBag["shaData"]
+	if shaData != nil {
+		shaDataMap := shaData.(map[string]any)
+		repo := pipelineReport.RunResourceVersion.ResourceVersionContentPropertyBag["path"]
+		branch := shaDataMap["branchName"].(string)
+		commitUrl := shaDataMap["commitUrl"].(string)
+		commitMessage := shaDataMap["commitMessage"].(string)
+		commitSha := shaDataMap["commitSha"].(string)[0:8]
+		vcsInfo = append(vcsInfo, fmt.Sprintf("`<%s|%s>` %s%s @ %s", commitUrl, commitSha, commitMessage, repo, branch))
+	} else {
+		buildInfo, err := getBuildInfo(cmd.buildConfiguration, cmd.slackConfiguration.serverDetails)
+		if err == nil {
+			revisions := map[string]struct{}{}
+			for _, vcs := range buildInfo.VcsList {
+				_, processed := revisions[vcs.Revision]
+				if vcs.Revision != "" && vcs.Branch != "" && !processed {
+					revisions[vcs.Revision] = struct{}{}
+					vcsInfo = append(vcsInfo, fmt.Sprintf("`%s` @ `%s`", vcs.Branch, vcs.Revision[0:8]))
+				}
+			}
+			// Look again to add any revisions without a branch name
+			for _, vcs := range buildInfo.VcsList {
+				_, processed := revisions[vcs.Revision]
+				if !processed {
+					revisions[vcs.Revision] = struct{}{}
+					vcsInfo = append(vcsInfo, fmt.Sprintf("`%s`", vcs.Revision[0:8]))
+				}
+			}
+		}
+
+	}
+	if len(vcsInfo) > 0 {
+		message.Blocks = append(message.Blocks, SlackBlock{
+			Type: "section",
+			Text: SlackText{
+				Type: "mrkdwn",
+				Text: strings.Join(vcsInfo, "\n"),
+			},
+		})
+	}
+
+	testReport := pipelineReport.TestReport
+	if testReport.TotalTests > 0 {
+		icon := ""
+		if pipelineReport.TestReport.TotalFailures > 0 || pipelineReport.TestReport.TotalErrors > 0 {
+			icon = ":exclamation: "
+		}
+		message.Blocks = append(message.Blocks, SlackBlock{
+			Type: "section",
+			Text: SlackText{
+				Type: "mrkdwn",
+				Text: fmt.Sprintf("%s%d tests; %d succeeded, %d skipped, %d failed, %d errored", icon, testReport.TotalTests, testReport.TotalPassing, testReport.TotalSkipped, testReport.TotalFailures, testReport.TotalErrors),
+			},
+		})
+	}
+
+	xrayService, err := services.NewXrayService(*cmd.slackConfiguration.serverDetails)
+	if err != nil {
+		return err
+	}
+	summary, err := xrayService.GetBuildSummary(cmd.buildConfiguration)
+	if err != nil {
+		return err
+	}
+	if len(summary.Issues) > 0 {
+		ignoredViolations, err := xrayService.GetIgnoredViolations([]xray.Scope{{
+			Name: summary.Build.Name,
+		}})
+		if err != nil {
+			return err
+		}
+		var ignoredIssues []string
+		for _, violation := range *ignoredViolations {
+			ignoredIssues = append(ignoredIssues, violation.IssueId)
+		}
+		var issueCount = 0
+		for _, issue := range summary.Issues {
+			if !slices.Contains(ignoredIssues, issue.IssueId) {
+				issueCount++
+			} else {
+				log.Debug("Violation for issue " + issue.IssueId + " is ignored.")
+			}
+		}
+		var text string
+		if issueCount > 0 {
+			timestamp := strconv.FormatInt(pipelineReport.EndedAt.UnixMilli(), 10)
+			url := cmd.slackConfiguration.serverDetails.GetUrl() + "ui/builds/" + summary.Build.Name + "/" + summary.Build.Number + "/" + timestamp + "/xrayData"
+			text = fmt.Sprintf(":exclamation: <%s|%d violations>, %d security issues, %d operational risks", url, issueCount, len(summary.Issues), len(summary.OperationalRisks))
+		} else {
+			text = fmt.Sprintf("%d security issues, %d operational risks", len(summary.Issues), len(summary.OperationalRisks))
+		}
+		message.Blocks = append(message.Blocks, SlackBlock{
+			Type: "section",
+			Text: SlackText{
+				Type: "mrkdwn",
+				Text: text,
+			},
+		})
+	}
+
+	content, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
@@ -196,5 +253,6 @@ type SlackAttachment struct {
 }
 
 type SlackMessage struct {
+	Blocks      []SlackBlock      `json:"blocks"`
 	Attachments []SlackAttachment `json:"attachments"`
 }

@@ -127,7 +127,7 @@ func (cmd *SendDeploymentInfoCommand) Run() error {
 			return err
 		}
 
-		state, _, _ := pipelinesService.GetRunState(currentRun.Id, cmd.jiraConfiguration.includePrePostRunSteps)
+		_, _, state, _ := pipelinesService.GetRunSteps(currentRun.Id, cmd.jiraConfiguration.includePrePostRunSteps)
 
 		jiraDeploymentInfo := jira.DeploymentInfo{
 			SchemaVersion:            "1.0",

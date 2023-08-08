@@ -30,12 +30,19 @@ type Pipeline struct {
 	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
-type PipelineReport struct {
-	Name          string `json:"name"`
-	Branch        string `json:"branch"`
-	RunId         int64  `json:"runId"`
-	RunNumber     int64  `json:"runNumber"`
-	State         common.State
+type PipelineRunReport struct {
+	Name               string             `json:"name"`
+	Branch             string             `json:"branch"`
+	RunId              int64              `json:"runId"`
+	RunNumber          int64              `json:"runNumber"`
+	EndedAt            time.Time          `json:"endedAt"`
+	StartedAt          time.Time          `json:"startedAt"`
+	State              common.State       `json:"state"`
+	TestReport         PipelineTestReport `json:"tests"`
+	RunResourceVersion RunResourceVersion `json:"run-resource-version"`
+}
+
+type PipelineTestReport struct {
 	TotalTests    int64 `json:"totalTests"`
 	TotalPassing  int64 `json:"totalPassing"`
 	TotalFailures int64 `json:"totalFailures"`
@@ -44,12 +51,44 @@ type PipelineReport struct {
 }
 
 type Step struct {
-	Id         int64  `json:"id"`
-	PipelineId int64  `json:"pipelineId"`
-	RunId      int64  `json:"runId"`
-	StatusCode int64  `json:"statusCode"`
-	TypeCode   int64  `json:"typeCode"`
-	Name       string `json:"name"`
+	ConfigPropertyBag            map[string]any `json:"configPropertyBag"`
+	StaticPropertyBag            map[string]any `json:"staticPropertyBag"`
+	SystemPropertyBag            map[string]any `json:"systemPropertyBag"`
+	ExecPropertyBag              map[string]any `json:"execPropertyBag"`
+	Id                           int64          `json:"id"`
+	MasterResourceId             int64          `json:"masterResourceId"`
+	PipelineId                   int64          `json:"pipelineId"`
+	PipelineSourceId             int64          `json:"pipelineSourceId"`
+	PipelineStepId               int64          `json:"pipelineStepId"`
+	ProjectId                    int64          `json:"projectId"`
+	Name                         string         `json:"name"`
+	RunId                        int64          `json:"runId"`
+	StatusCode                   int64          `json:"statusCode"`
+	TypeCode                     int64          `json:"typeCode"`
+	AffinityGroup                string         `json:"affinityGroup"`
+	GroupInProgress              bool           `json:"groupInProgress"`
+	GroupStartedAt               time.Time      `json:"groupStartedAt"`
+	PendingLogsComplete          bool           `json:"pendingLogsComplete"`
+	IsConsoleArchived            bool           `json:"isConsoleArchived"`
+	FileStoreProvider            interface{}    `json:"fileStoreProvider"`
+	PipelineStateArtifactName    interface{}    `json:"pipelineStateArtifactName"`
+	TriggeredByResourceVersionId int64          `json:"triggeredByResourceVersionId"`
+	TriggeredByStepId            interface{}    `json:"triggeredByStepId"`
+	TriggeredByIdentityId        interface{}    `json:"triggeredByIdentityId"`
+	TriggeredAt                  time.Time      `json:"triggeredAt"`
+	TimeoutAt                    time.Time      `json:"timeoutAt"`
+	ReadyAt                      time.Time      `json:"readyAt"`
+	QueuedAt                     time.Time      `json:"queuedAt"`
+	EndedAt                      time.Time      `json:"endedAt"`
+	StartedAt                    time.Time      `json:"startedAt"`
+	LastHeartbeatAt              time.Time      `json:"lastHeartbeatAt"`
+	ApprovalRequestedAt          interface{}    `json:"approvalRequestedAt"`
+	ExternalBuildId              interface{}    `json:"externalBuildId"`
+	ExternalBuildUrl             interface{}    `json:"externalBuildUrl"`
+	RequiresApproval             bool           `json:"requiresApproval"`
+	IsApproved                   interface{}    `json:"isApproved"`
+	CreatedAt                    time.Time      `json:"createdAt"`
+	UpdatedAt                    time.Time      `json:"updatedAt"`
 }
 
 type StepTestReport struct {

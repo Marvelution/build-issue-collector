@@ -26,10 +26,9 @@ pipelines:
     runtime:
       type: image
       image:
-        auto:
-          language: go
-          versions:
-          - "1.19"
+        custom:
+          name: {{.Values.languages.go.image}}
+          tag: '{{.Values.languages.go.version}}'
   steps:
   - name: build
     type: Bash

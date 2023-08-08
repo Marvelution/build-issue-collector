@@ -1,3 +1,6 @@
+## 1.6.0 (August 8, 2023)
+- Improved notify-slack command including xray and test information 
+
 ## 1.5.3 (August 4, 2023)
 - Resolved pipeline final state check error
 

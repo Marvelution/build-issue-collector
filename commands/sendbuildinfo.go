@@ -96,10 +96,10 @@ func (cmd *SendBuildInfoCommand) Run() error {
 		if pipelineReport != nil {
 			jiraBuildInfo.State = pipelineReport.State
 			jiraBuildInfo.TestInfo = &jira.TestInfo{
-				TotalNumber:   pipelineReport.TotalTests,
-				NumberPassed:  pipelineReport.TotalPassing,
-				NumberFailed:  pipelineReport.TotalFailures + pipelineReport.TotalErrors,
-				NumberSkipped: pipelineReport.TotalSkipped,
+				TotalNumber:   pipelineReport.TestReport.TotalTests,
+				NumberPassed:  pipelineReport.TestReport.TotalPassing,
+				NumberFailed:  pipelineReport.TestReport.TotalFailures + pipelineReport.TestReport.TotalErrors,
+				NumberSkipped: pipelineReport.TestReport.TotalSkipped,
 			}
 		}
 

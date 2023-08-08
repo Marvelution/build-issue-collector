@@ -5,3 +5,7 @@ repo:
   path: marvelution/ext-build-info
 artifactory: Artifactory
 jira: Jira
+languages:
+  go:
+    image: releases-docker.jfrog.io/jfrog/pipelines-u20go
+    version: '1.19'
