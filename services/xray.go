@@ -99,6 +99,6 @@ func (xr *XrayService) GetRequest(url string, response any) error {
 	if resp.StatusCode == http.StatusOK {
 		return json.Unmarshal(body, response)
 	} else {
-		return errorutils.CheckErrorf(fmt.Sprintf("Response from Pipelines (%s): %s.\n%s\n", fullUrl, resp.Status, body))
+		return errorutils.CheckErrorf(fmt.Sprintf("Response from Xray (%s): %s.\n%s\n", fullUrl, resp.Status, body))
 	}
 }

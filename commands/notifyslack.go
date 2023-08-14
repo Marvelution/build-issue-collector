@@ -134,29 +134,26 @@ func (cmd *NotifySlackCommand) Run() error {
 	if err != nil {
 		return err
 	}
-	scanResult, err := xrayService.GetBuildScanResult(cmd.buildConfiguration)
-	if err != nil {
-		return err
-	}
-	summary, err := xrayService.GetBuildSummary(cmd.buildConfiguration)
-	if err != nil {
-		return err
-	}
-	if len(scanResult.Vulnerabilities) > 0 {
-
-		var text string
-		if len(scanResult.Violations) > 0 {
-			text = fmt.Sprintf(":exclamation: <%s|%d violations>, %d security issues, %d operational risks", scanResult.MoreDetailsUrl, len(scanResult.Violations), len(scanResult.Vulnerabilities), len(summary.OperationalRisks))
-		} else {
-			text = fmt.Sprintf("%d security issues, %d operational risks", len(scanResult.Vulnerabilities), len(summary.OperationalRisks))
+	scanResult, _ := xrayService.GetBuildScanResult(cmd.buildConfiguration)
+	if scanResult != nil {
+		summary, _ := xrayService.GetBuildSummary(cmd.buildConfiguration)
+		if summary != nil {
+			if len(scanResult.Vulnerabilities) > 0 {
+				var text string
+				if len(scanResult.Violations) > 0 {
+					text = fmt.Sprintf(":exclamation: <%s|%d violations>, %d security issues, %d operational risks", scanResult.MoreDetailsUrl, len(scanResult.Violations), len(scanResult.Vulnerabilities), len(summary.OperationalRisks))
+				} else {
+					text = fmt.Sprintf("%d security issues, %d operational risks", len(scanResult.Vulnerabilities), len(summary.OperationalRisks))
+				}
+				message.Blocks = append(message.Blocks, SlackBlock{
+					Type: "section",
+					Text: SlackText{
+						Type: "mrkdwn",
+						Text: text,
+					},
+				})
+			}
 		}
-		message.Blocks = append(message.Blocks, SlackBlock{
-			Type: "section",
-			Text: SlackText{
-				Type: "mrkdwn",
-				Text: text,
-			},
-		})
 	}
 
 	content, err := json.Marshal(message)

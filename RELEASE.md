@@ -1,4 +1,7 @@
-## 1.6.1 (August 8, 2023)
+## 1.6.2 (August 14, 2023)
+- Optional Xray reporting in notify-slack
+
+## 1.6.1 (August 14, 2023)
 - Fixed pipeline status resolution and violation reporting
 
 ## 1.6.0 (August 8, 2023)
