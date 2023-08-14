@@ -6,16 +6,14 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	utilsconfig "github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-client-go/http/httpclient"
+	clientUtils "github.com/jfrog/jfrog-client-go/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/io/httputils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/marvelution/ext-build-info/services"
 	"github.com/marvelution/ext-build-info/services/common"
-	"github.com/marvelution/ext-build-info/services/xray"
-	"golang.org/x/exp/slices"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -72,18 +70,23 @@ func (cmd *NotifySlackCommand) Run() error {
 	}
 
 	var vcsInfo []string
-	shaData := pipelineReport.RunResourceVersion.ResourceVersionContentPropertyBag["shaData"]
-	if shaData != nil {
-		shaDataMap := shaData.(map[string]any)
-		repo := pipelineReport.RunResourceVersion.ResourceVersionContentPropertyBag["path"]
-		branch := shaDataMap["branchName"].(string)
-		commitUrl := shaDataMap["commitUrl"].(string)
-		commitMessage := shaDataMap["commitMessage"].(string)
-		commitSha := shaDataMap["commitSha"].(string)[0:8]
-		vcsInfo = append(vcsInfo, fmt.Sprintf("`<%s|%s>` %s%s @ %s", commitUrl, commitSha, commitMessage, repo, branch))
+	runResourceVersions := pipelineReport.GetGitRepoRunResourceVersions()
+	if len(*runResourceVersions) > 0 {
+		for _, runResourceVersion := range *runResourceVersions {
+			log.Debug("Collecting vcs information from resource: " + runResourceVersion.ResourceName)
+			shaData := runResourceVersion.ResourceVersionContentPropertyBag["shaData"]
+			shaDataMap := shaData.(map[string]any)
+			repo := runResourceVersion.ResourceVersionContentPropertyBag["path"]
+			branch := shaDataMap["branchName"].(string)
+			commitUrl := shaDataMap["commitUrl"].(string)
+			commitMessage := shaDataMap["commitMessage"].(string)
+			commitSha := shaDataMap["commitSha"].(string)[0:8]
+			vcsInfo = append(vcsInfo, fmt.Sprintf("`<%s|%s>` %s%s @ %s", commitUrl, commitSha, commitMessage, repo, branch))
+		}
 	} else {
 		buildInfo, err := getBuildInfo(cmd.buildConfiguration, cmd.slackConfiguration.serverDetails)
 		if err == nil {
+			log.Debug(fmt.Sprintf("Collecting vcs information from buildInfo: %s #%s", buildInfo.Name, buildInfo.Number))
 			revisions := map[string]struct{}{}
 			for _, vcs := range buildInfo.VcsList {
 				_, processed := revisions[vcs.Revision]
@@ -101,7 +104,6 @@ func (cmd *NotifySlackCommand) Run() error {
 				}
 			}
 		}
-
 	}
 	if len(vcsInfo) > 0 {
 		message.Blocks = append(message.Blocks, SlackBlock{
@@ -132,36 +134,21 @@ func (cmd *NotifySlackCommand) Run() error {
 	if err != nil {
 		return err
 	}
+	scanResult, err := xrayService.GetBuildScanResult(cmd.buildConfiguration)
+	if err != nil {
+		return err
+	}
 	summary, err := xrayService.GetBuildSummary(cmd.buildConfiguration)
 	if err != nil {
 		return err
 	}
-	if len(summary.Issues) > 0 {
-		ignoredViolations, err := xrayService.GetIgnoredViolations([]xray.Scope{{
-			Name: summary.Build.Name,
-		}})
-		if err != nil {
-			return err
-		}
-		var ignoredIssues []string
-		for _, violation := range *ignoredViolations {
-			ignoredIssues = append(ignoredIssues, violation.IssueId)
-		}
-		var issueCount = 0
-		for _, issue := range summary.Issues {
-			if !slices.Contains(ignoredIssues, issue.IssueId) {
-				issueCount++
-			} else {
-				log.Debug("Violation for issue " + issue.IssueId + " is ignored.")
-			}
-		}
+	if len(scanResult.Vulnerabilities) > 0 {
+
 		var text string
-		if issueCount > 0 {
-			timestamp := strconv.FormatInt(pipelineReport.EndedAt.UnixMilli(), 10)
-			url := cmd.slackConfiguration.serverDetails.GetUrl() + "ui/builds/" + summary.Build.Name + "/" + summary.Build.Number + "/" + timestamp + "/xrayData"
-			text = fmt.Sprintf(":exclamation: <%s|%d violations>, %d security issues, %d operational risks", url, issueCount, len(summary.Issues), len(summary.OperationalRisks))
+		if len(scanResult.Violations) > 0 {
+			text = fmt.Sprintf(":exclamation: <%s|%d violations>, %d security issues, %d operational risks", scanResult.MoreDetailsUrl, len(scanResult.Violations), len(scanResult.Vulnerabilities), len(summary.OperationalRisks))
 		} else {
-			text = fmt.Sprintf("%d security issues, %d operational risks", len(summary.Issues), len(summary.OperationalRisks))
+			text = fmt.Sprintf("%d security issues, %d operational risks", len(scanResult.Vulnerabilities), len(summary.OperationalRisks))
 		}
 		message.Blocks = append(message.Blocks, SlackBlock{
 			Type: "section",
@@ -178,7 +165,7 @@ func (cmd *NotifySlackCommand) Run() error {
 	}
 
 	url := os.Getenv("int_" + cmd.slackConfiguration.slack + "_url")
-	log.Debug("Posting message to "+url, string(content))
+	log.Debug("Posting message to " + url + "\n" + clientUtils.IndentJson(content))
 
 	client, err := httpclient.ClientBuilder().Build()
 	if err != nil {

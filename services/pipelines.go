@@ -100,12 +100,11 @@ func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSte
 		pipelineReport.TestReport.TotalTests += stepTestReport.TotalTests
 	}
 
-	triggeredByRunResourceVersionId := int64(run.StaticPropertyBag["triggeredByRunResourceVersionId"].(float64))
-	runResourceVersion, err := ps.GetRunResourceVersion(triggeredByRunResourceVersionId)
+	runResourceVersions, err := ps.GetRunResourceVersions(parsedRunId)
 	if err != nil {
 		return nil, err
 	}
-	pipelineReport.RunResourceVersion = *runResourceVersion
+	pipelineReport.RunResourceVersions = *runResourceVersions
 
 	return &pipelineReport, nil
 }
@@ -171,6 +170,15 @@ func (ps *PipelinesService) GetRunResourceVersion(versionId int64) (*pipelines.R
 	}
 }
 
+func (ps *PipelinesService) GetRunResourceVersions(runId int64) (*[]pipelines.RunResourceVersion, error) {
+	versions := &[]pipelines.RunResourceVersion{}
+	err := ps.GetRequest("api/v1/runResourceVersions?runIds="+strconv.FormatInt(runId, 10), versions)
+	if err != nil {
+		return nil, err
+	}
+	return versions, nil
+}
+
 func (ps *PipelinesService) FindRunResourceVersion(attributes map[string]string) (*pipelines.RunResourceVersion, error) {
 	versions := &[]pipelines.RunResourceVersion{}
 	params := ps.CreateParams(attributes)
@@ -182,21 +190,6 @@ func (ps *PipelinesService) FindRunResourceVersion(attributes map[string]string)
 		return &(*versions)[0], nil
 	} else {
 		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline run resource version found with %s\n", params))
-	}
-}
-
-func (ps *PipelinesService) GetResource(resourceName string, pipelineSourceId int64, pipelineSourceBranch string) (*pipelines.Resource, error) {
-	resources := &[]pipelines.Resource{}
-	err := ps.GetRequest("api/v1/resources?names="+resourceName+"&pipelineSourceIds="+strconv.FormatInt(pipelineSourceId,
-		10)+"&pipelineSourceBranches="+pipelineSourceBranch, resources)
-	if err != nil {
-		return nil, err
-	}
-	if len(*resources) == 1 {
-		return &(*resources)[0], nil
-	} else {
-		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline resource found with name: %s sourceId: %d branch: %s\n",
-			resourceName, pipelineSourceId, pipelineSourceBranch))
 	}
 }
 

@@ -16,7 +16,7 @@ func main() {
 	plugins.PluginMain(components.App{
 		Name:        "ext-build-info",
 		Description: "Extended build info.",
-		Version:     "v1.6.0",
+		Version:     "v1.6.1",
 		Commands: []components.Command{
 			{
 				Name:        "collect-issues",

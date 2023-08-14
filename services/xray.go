@@ -71,14 +71,21 @@ func (xr *XrayService) GetBuildSummary(buildConfig *artutils.BuildConfiguration)
 	return buildSummary, nil
 }
 
-func (xr *XrayService) GetIgnoredViolations(scopes []xray.Scope) (*[]xray.IgnoredViolation, error) {
-	request := xray.IgnoredViolationsRequest{Artifacts: scopes}
-	response := &xray.IgnoredViolationsResponse{}
-	err := xr.PostRequest("api/v1/violations/ignored", request, response)
+func (xr *XrayService) GetBuildScanResult(buildConfig *artutils.BuildConfiguration) (*xray.BuildScanResult, error) {
+	name, err := buildConfig.GetBuildName()
 	if err != nil {
 		return nil, err
 	}
-	return &response.Data, nil
+	number, err := buildConfig.GetBuildNumber()
+	if err != nil {
+		return nil, err
+	}
+	buildScanResult := &xray.BuildScanResult{}
+	err = xr.GetRequest("api/v2/ci/build/"+name+"/"+number+"?include_vulnerabilities=true", buildScanResult)
+	if err != nil {
+		return nil, err
+	}
+	return buildScanResult, nil
 }
 
 func (xr *XrayService) GetRequest(url string, response any) error {
@@ -86,25 +93,6 @@ func (xr *XrayService) GetRequest(url string, response any) error {
 	utils.SetContentType("application/json", &clientDetails.Headers)
 	fullUrl := xr.GetUrl() + url
 	resp, body, _, err := xr.client.SendGet(fullUrl, false, &clientDetails)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode == http.StatusOK {
-		return json.Unmarshal(body, response)
-	} else {
-		return errorutils.CheckErrorf(fmt.Sprintf("Response from Pipelines (%s): %s.\n%s\n", fullUrl, resp.Status, body))
-	}
-}
-
-func (xr *XrayService) PostRequest(url string, request, response any) error {
-	clientDetails := xr.CreateHttpClientDetails()
-	utils.SetContentType("application/json", &clientDetails.Headers)
-	fullUrl := xr.GetUrl() + url
-	content, err := json.Marshal(request)
-	if err != nil {
-		return err
-	}
-	resp, body, err := xr.client.SendPost(fullUrl, content, &clientDetails)
 	if err != nil {
 		return err
 	}

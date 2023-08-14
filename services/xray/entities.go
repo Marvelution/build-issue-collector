@@ -2,6 +2,18 @@ package xray
 
 import "time"
 
+import "github.com/jfrog/jfrog-client-go/xray/services"
+
+type BuildScanResult struct {
+	BuildName       string                   `json:"build_name"`
+	BuildNumber     string                   `json:"build_number"`
+	Status          string                   `json:"status"`
+	MoreDetailsUrl  string                   `json:"more_details_url"`
+	FailBuild       bool                     `json:"fail_build"`
+	Violations      []services.Violation     `json:"violations,omitempty"`
+	Vulnerabilities []services.Vulnerability `json:"vulnerabilities,omitempty"`
+}
+
 type BuildSummary struct {
 	Build            Build             `json:"build"`
 	Issues           []Issue           `json:"issues"`
@@ -58,60 +70,4 @@ type OperationalRisk struct {
 	Commits       interface{} `json:"commits"`
 	Committers    interface{} `json:"committers"`
 	Released      time.Time   `json:"released"`
-}
-
-type IgnoredViolationsRequest struct {
-	Artifacts []Scope `json:"artifacts"`
-}
-
-type Scope struct {
-	Name    string `json:"name"`
-	Version string `json:"version,omitempty"`
-}
-
-type IgnoredViolationsResponse struct {
-	Data       []IgnoredViolation `json:"data"`
-	TotalCount int64              `json:"total_count"`
-}
-
-type IgnoredViolation struct {
-	ViolationId       string            `json:"violation_id"`
-	IssueId           string            `json:"issue_id"`
-	Type              string            `json:"type"`
-	Created           time.Time         `json:"created"`
-	WatchName         string            `json:"watch_name"`
-	Provider          string            `json:"provider"`
-	Description       string            `json:"description"`
-	Severity          string            `json:"severity"`
-	Properties        []Properties      `json:"properties"`
-	ImpactedArtifact  ImpactedArtifact  `json:"impacted_artifact"`
-	MatchedPolicies   []MatchedPolicies `json:"matched_policies"`
-	IgnoreRuleDetails IgnoreRuleDetails `json:"ignore_rule_details"`
-	Applicability     interface{}       `json:"applicability"`
-}
-
-type Properties struct {
-	Cve    string   `json:"Cve"`
-	Cwe    []string `json:"Cwe"`
-	CvssV2 string   `json:"CvssV2"`
-	CvssV3 string   `json:"CvssV3"`
-}
-
-type ImpactedArtifact struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Path    string `json:"path"`
-}
-
-type MatchedPolicies struct {
-	Policy     string `json:"policy"`
-	Rule       string `json:"rule"`
-	IsBlocking bool   `json:"is_blocking"`
-}
-type IgnoreRuleDetails struct {
-	Id        string    `json:"id"`
-	Author    string    `json:"author"`
-	Created   time.Time `json:"created"`
-	Notes     string    `json:"notes"`
-	IsExpired bool      `json:"is_expired"`
 }

@@ -31,15 +31,32 @@ type Pipeline struct {
 }
 
 type PipelineRunReport struct {
-	Name               string             `json:"name"`
-	Branch             string             `json:"branch"`
-	RunId              int64              `json:"runId"`
-	RunNumber          int64              `json:"runNumber"`
-	EndedAt            time.Time          `json:"endedAt"`
-	StartedAt          time.Time          `json:"startedAt"`
-	State              common.State       `json:"state"`
-	TestReport         PipelineTestReport `json:"tests"`
-	RunResourceVersion RunResourceVersion `json:"run-resource-version"`
+	Name                string               `json:"name"`
+	Branch              string               `json:"branch"`
+	RunId               int64                `json:"runId"`
+	RunNumber           int64                `json:"runNumber"`
+	EndedAt             time.Time            `json:"endedAt"`
+	StartedAt           time.Time            `json:"startedAt"`
+	State               common.State         `json:"state"`
+	TestReport          PipelineTestReport   `json:"tests"`
+	RunResourceVersions []RunResourceVersion `json:"run-resource-versions"`
+}
+
+func (prr *PipelineRunReport) GetGitRepoRunResourceVersions() *[]RunResourceVersion {
+	return prr.GetRunResourceVersions(1000)
+}
+
+func (prr *PipelineRunReport) GetRunResourceVersions(typeCode int64) *[]RunResourceVersion {
+	revisions := map[int64]struct{}{}
+	resources := &[]RunResourceVersion{}
+	for _, resource := range prr.RunResourceVersions {
+		_, processed := revisions[resource.ResourceVersionId]
+		if resource.ResourceTypeCode == typeCode && !processed {
+			revisions[resource.ResourceVersionId] = struct{}{}
+			*resources = append(*resources, resource)
+		}
+	}
+	return resources
 }
 
 type PipelineTestReport struct {
@@ -145,47 +162,6 @@ type RunResourceVersion struct {
 	ResourceVersionCreatedByStepId    int64          `json:"resourceVersionCreatedByStepId"`
 	CreatedAt                         time.Time      `json:"createdAt"`
 	UpdatedAt                         time.Time      `json:"updatedAt"`
-}
-
-type Resource struct {
-	YmlConfigPropertyBag        map[string]any `json:"ymlConfigPropertyBag"`
-	SystemPropertyBag           map[string]any `json:"systemPropertyBag"`
-	StaticPropertyBag           map[string]any `json:"staticPropertyBag"`
-	Yml                         ResourceYaml   `json:"yml"`
-	Id                          int64          `json:"id"`
-	Name                        string         `json:"name"`
-	PipelineSourceBranch        string         `json:"pipelineSourceBranch"`
-	ProjectIntegrationId        int64          `json:"projectIntegrationId"`
-	TypeCode                    int64          `json:"typeCode"`
-	MasterResourceId            int64          `json:"masterResourceId"`
-	LatestResourceVersionId     int64          `json:"latestResourceVersionId"`
-	PinnedVersionId             int64          `json:"pinnedVersionId"`
-	ProjectId                   int64          `json:"projectId"`
-	PipelineSourceId            int64          `json:"pipelineSourceId"`
-	IsDeleted                   bool           `json:"isDeleted"`
-	DeletedAt                   time.Time      `json:"deletedAt"`
-	IsConsistent                bool           `json:"isConsistent"`
-	IsInternal                  bool           `json:"isInternal"`
-	SyntaxVersion               string         `json:"syntaxVersion"`
-	NextTriggerTime             time.Time      `json:"nextTriggerTime"`
-	GitRepoFullName             string         `json:"gitRepoFullName"`
-	GitIncludeBranchPattern     string         `json:"gitIncludeBranchPattern"`
-	GitExcludeBranchPattern     string         `json:"gitExcludeBranchPattern"`
-	GitBuildOnCommit            bool           `json:"gitBuildOnCommit"`
-	GitBuildOnPullRequestCreate bool           `json:"gitBuildOnPullRequestCreate"`
-	GitBuildOnPullRequestClose  bool           `json:"gitBuildOnPullRequestClose"`
-	GitBuildOnReleaseCreate     bool           `json:"gitBuildOnReleaseCreate"`
-	GitBuildOnTagCreate         bool           `json:"gitBuildOnTagCreate"`
-	StoreVersionHistory         bool           `json:"storeVersionHistory"`
-	GitBuildOnBranchDelete      bool           `json:"gitBuildOnBranchDelete"`
-	CreatedAt                   time.Time      `json:"createdAt"`
-	UpdatedAt                   time.Time      `json:"updatedAt"`
-}
-
-type ResourceYaml struct {
-	Name          string         `json:"name"`
-	Type          string         `json:"type"`
-	Configuration map[string]any `json:"configuration"`
 }
 
 type ResourceVersion struct {

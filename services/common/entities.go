@@ -22,11 +22,11 @@ func GetState(code int64) State {
 		return Pending
 	} else if code == 4001 {
 		return InProgress
-	} else if code == 4002 {
+	} else if code == 4002 || code == 4008 {
 		return Successful
-	} else if code == 4003 || code == 4004 || code == 4007 {
+	} else if code == 4003 || code == 4004 || code == 4007 || code == 4009 {
 		return Failed
-	} else if code == 4006 || code == 4008 {
+	} else if code == 4006 {
 		return Cancelled
 	} else {
 		return Unknown
