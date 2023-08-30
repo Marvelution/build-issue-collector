@@ -61,14 +61,8 @@ func (cmd *SendDeploymentInfoCommand) Run() error {
 	if err != nil {
 		return err
 	}
-	// Get resource version details
-	resourceVersion, err := pipelinesService.GetResourceVersion(currentRunResourceVersion.ResourceVersionId,
-		currentRunResourceVersion.PipelineSourceBranch)
-	if err != nil {
-		return err
-	}
 	// Get CreatedBy Run details
-	createdByRun, err := pipelinesService.GetRun(resourceVersion.CreatedByRunId)
+	createdByRun, err := pipelinesService.GetRun(currentRun.ParentRunId)
 	if err != nil {
 		return err
 	}
@@ -76,7 +70,7 @@ func (cmd *SendDeploymentInfoCommand) Run() error {
 	attributes := map[string]string{
 		"pipelineIds":       strconv.FormatInt(createdByRun.PipelineId, 10),
 		"pipelineSourceIds": strconv.FormatInt(createdByRun.PipelineSourceId, 10),
-		"createdBefore":     currentRun.CreatedAt.Add(-time.Minute * 1).Format(time.RFC3339),
+		"createdBefore":     createdByRun.CreatedAt.Format(time.RFC3339),
 		"limit":             "1",
 		"sortBy":            "id",
 		"sortOrder":         "-1",
@@ -135,7 +129,7 @@ func (cmd *SendDeploymentInfoCommand) Run() error {
 			UpdateSequenceNumber:     time.Now().UnixMilli(),
 			Associations: []jira.Association{{
 				AssociationType: jira.IssueIdOrKeysAssociation,
-				Values:          issueKeys,
+				Values:          util.RemoveDuplicate(issueKeys),
 			}},
 			DisplayName: cmd.deploymentInfo.GetDisplayName(),
 			Url:         cmd.deploymentInfo.url,

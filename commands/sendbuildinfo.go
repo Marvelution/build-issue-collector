@@ -81,7 +81,7 @@ func (cmd *SendBuildInfoCommand) Run() error {
 			Url:                  buildInfo.BuildUrl,
 			State:                common.Unknown,
 			LastUpdated:          time.Now(),
-			IssueKeys:            issueKeys,
+			IssueKeys:            util.RemoveDuplicate(issueKeys),
 			References:           references,
 		}
 

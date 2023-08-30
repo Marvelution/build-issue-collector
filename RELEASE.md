@@ -1,3 +1,6 @@
+## 1.6.3 (August 30, 2023)
+- Resolved bug in send-deployment-info related to previous run lookup
+
 ## 1.6.2 (August 14, 2023)
 - Optional Xray reporting in notify-slack
 
