@@ -61,7 +61,7 @@ func (bis *ExtBuildInfoService) GetBuildInfosInRange(buildConfig *artutils.Build
 	}
 	buildInfoService := bis.getBuildInfoService()
 	buildInfos := &[]buildinfo.BuildInfo{}
-	var nonNumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
+	var nonNumericRegex = regexp.MustCompile(`[^0-9]+`)
 	for _, build := range buildRuns.BuildsNumbers {
 		buildNumber, err := strconv.ParseInt(nonNumericRegex.ReplaceAllString(build.Uri, ""), 10, 64)
 		if err != nil {
@@ -78,6 +78,7 @@ func (bis *ExtBuildInfoService) GetBuildInfosInRange(buildConfig *artutils.Build
 			} else if !found {
 				log.Debug("Excluding build-info " + buildInfoParams.BuildName + " #" + buildInfoParams.BuildNumber + " it was not found")
 			} else {
+				log.Info("Including build-info " + buildInfoParams.BuildName + " #" + buildInfoParams.BuildNumber)
 				for _, vcs := range publishedBuildInfo.BuildInfo.VcsList {
 					if vcs.Branch == branch {
 						log.Info("Including build-info " + buildInfoParams.BuildName + " #" + buildInfoParams.BuildNumber)
@@ -125,7 +126,7 @@ func (bis *ExtBuildInfoService) GetBuildRuns(buildName, projectKey string) (*Bui
 	if err := json.Unmarshal(body, runs); err != nil {
 		return nil, err
 	}
-
+	log.Debug("Found runs: ", runs)
 	return runs, nil
 }
 

@@ -228,7 +228,7 @@ func (di *DeploymentInfo) GetDisplayName() string {
 }
 
 func (di *DeploymentInfo) GetPipeline() jira.Pipeline {
-	regex := regexp.MustCompile("(.*)/([0-9]*)/(.*)\\?(.*)")
+	regex := regexp.MustCompile("(.*)/([0-9]*)/?(.*)\\?(.*)")
 	parts := regex.FindAllStringSubmatch(di.url, -1)
 	url := parts[0][1] + "?" + parts[0][4]
 	return jira.Pipeline{

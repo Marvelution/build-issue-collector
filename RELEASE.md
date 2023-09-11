@@ -1,3 +1,7 @@
+## 1.6.4 (September 11, 2023)
+- Resolved bug in send-deployment-info related to pipeline url parsing
+- Added additional logging
+
 ## 1.6.3 (August 30, 2023)
 - Resolved bug in send-deployment-info related to previous run lookup
 
