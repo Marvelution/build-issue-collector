@@ -71,7 +71,6 @@ func (cmd *SendDeploymentInfoCommand) Run() error {
 		"pipelineIds":       strconv.FormatInt(createdByRun.PipelineId, 10),
 		"pipelineSourceIds": strconv.FormatInt(createdByRun.PipelineSourceId, 10),
 		"createdBefore":     createdByRun.CreatedAt.Format(time.RFC3339),
-		"limit":             "1",
 		"sortBy":            "id",
 		"sortOrder":         "-1",
 	}

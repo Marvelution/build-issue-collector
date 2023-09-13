@@ -152,9 +152,14 @@ func (ps *PipelinesService) FindRun(attributes map[string]string) (*pipelines.Ru
 	}
 	if len(*runs) == 1 {
 		return &(*runs)[0], nil
-	} else {
-		return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline run found with %s\n", params))
+	} else if len(*runs) > 1 {
+		for _, run := range *runs {
+			if run.StatusCode == 4002 {
+				return &run, nil
+			}
+		}
 	}
+	return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline run found with %s\n", params))
 }
 
 func (ps *PipelinesService) GetRunResourceVersion(versionId int64) (*pipelines.RunResourceVersion, error) {

@@ -78,12 +78,13 @@ func (bis *ExtBuildInfoService) GetBuildInfosInRange(buildConfig *artutils.Build
 			} else if !found {
 				log.Debug("Excluding build-info " + buildInfoParams.BuildName + " #" + buildInfoParams.BuildNumber + " it was not found")
 			} else {
-				log.Info("Including build-info " + buildInfoParams.BuildName + " #" + buildInfoParams.BuildNumber)
 				for _, vcs := range publishedBuildInfo.BuildInfo.VcsList {
 					if vcs.Branch == branch {
 						log.Info("Including build-info " + buildInfoParams.BuildName + " #" + buildInfoParams.BuildNumber)
 						*buildInfos = append(*buildInfos, publishedBuildInfo.BuildInfo)
 						break
+					} else {
+						log.Debug("Excluding build-info " + buildInfoParams.BuildName + " #" + buildInfoParams.BuildNumber + " branch doesn't match")
 					}
 				}
 			}
