@@ -84,8 +84,8 @@ func (cmd *NotifySlackCommand) Run() error {
 			vcsInfo = append(vcsInfo, fmt.Sprintf("`<%s|%s>` %s%s @ %s", commitUrl, commitSha, commitMessage, repo, branch))
 		}
 	} else {
-		buildInfo, err := getBuildInfo(cmd.buildConfiguration, cmd.slackConfiguration.serverDetails)
-		if err == nil {
+		buildInfo, _ := getBuildInfo(cmd.buildConfiguration, cmd.slackConfiguration.serverDetails)
+		if buildInfo != nil {
 			log.Debug(fmt.Sprintf("Collecting vcs information from buildInfo: %s #%s", buildInfo.Name, buildInfo.Number))
 			revisions := map[string]struct{}{}
 			for _, vcs := range buildInfo.VcsList {
@@ -103,6 +103,8 @@ func (cmd *NotifySlackCommand) Run() error {
 					vcsInfo = append(vcsInfo, fmt.Sprintf("`%s`", vcs.Revision[0:8]))
 				}
 			}
+		} else if pipelineReport.Branch != "" {
+			vcsInfo = append(vcsInfo, fmt.Sprintf("@ %s", pipelineReport.Branch))
 		}
 	}
 	if len(vcsInfo) > 0 {
