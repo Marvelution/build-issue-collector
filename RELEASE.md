@@ -1,3 +1,6 @@
+## 1.6.7 (September 26, 2023)
+- Improved adding pipeline branch to Slack message if no other vcs information is available
+
 ## 1.6.6 (September 21, 2023)
 - Add pipeline branch to Slack message if no other vcs information is available
 

@@ -166,23 +166,27 @@ func (cmd *NotifySlackCommand) Run() error {
 	url := os.Getenv("int_" + cmd.slackConfiguration.slack + "_url")
 	log.Debug("Posting message to " + url + "\n" + clientUtils.IndentJson(content))
 
-	client, err := httpclient.ClientBuilder().Build()
-	if err != nil {
-		return err
-	}
-	httpClientDetails := httputils.HttpClientDetails{
-		Headers: map[string]string{"Content-Type": "application/json"},
-	}
-	resp, body, err := client.SendPost(url, content, httpClientDetails, "")
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode == http.StatusOK {
-		log.Info("Successfully posted message to Slack")
+	if cmd.slackConfiguration.dryRun {
 		return nil
 	} else {
-		return errorutils.CheckErrorf(fmt.Sprintf("Failed posting message to Slack: %s.\n%s\n", resp.Status, body))
+		client, err := httpclient.ClientBuilder().Build()
+		if err != nil {
+			return err
+		}
+		httpClientDetails := httputils.HttpClientDetails{
+			Headers: map[string]string{"Content-Type": "application/json"},
+		}
+		resp, body, err := client.SendPost(url, content, httpClientDetails, "")
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			log.Info("Successfully posted message to Slack")
+			return nil
+		} else {
+			return errorutils.CheckErrorf(fmt.Sprintf("Failed posting message to Slack: %s.\n%s\n", resp.Status, body))
+		}
 	}
 }
 
@@ -192,6 +196,7 @@ type SlackConfiguration struct {
 	slack                  string
 	includePrePostRunSteps bool
 	failOnReject           bool
+	dryRun                 bool
 }
 
 func (sc *SlackConfiguration) SetServerID(serverID string) *SlackConfiguration {
@@ -221,6 +226,10 @@ func (sc *SlackConfiguration) ValidateSlackConfiguration() (err error) {
 
 func (sc *SlackConfiguration) SetSlack(slack string) {
 	sc.slack = slack
+}
+
+func (sc *SlackConfiguration) SetDryRun(dryRun bool) {
+	sc.dryRun = dryRun
 }
 
 type SlackText struct {

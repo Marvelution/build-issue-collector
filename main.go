@@ -16,7 +16,7 @@ func main() {
 	plugins.PluginMain(components.App{
 		Name:        "ext-build-info",
 		Description: "Extended build info.",
-		Version:     "v1.6.6",
+		Version:     "v1.6.7",
 		Commands: []components.Command{
 			{
 				Name:        "collect-issues",
@@ -260,6 +260,11 @@ func main() {
 						Description:  "Enable to include pipeline preRun and postRun steps.",
 						DefaultValue: false,
 					},
+					components.BoolFlag{
+						Name:         "dry-run",
+						Description:  "Enable to only log what would be send to Slack.",
+						DefaultValue: false,
+					},
 				},
 				Arguments: []components.Argument{
 					{
@@ -446,5 +451,6 @@ func CreateSlackConfiguration(c *components.Context) *commands.SlackConfiguratio
 	slackConfiguration.SetSlack(c.GetStringFlagValue("slack"))
 	slackConfiguration.SetIncludePrePostRunSteps(c.GetBoolFlagValue("include-pre-post-runs"))
 	slackConfiguration.SetFailOnReject(c.GetBoolFlagValue("fail-on-reject"))
+	slackConfiguration.SetDryRun(c.GetBoolFlagValue("dry-run"))
 	return slackConfiguration
 }

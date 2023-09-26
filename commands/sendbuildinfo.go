@@ -40,7 +40,7 @@ func (cmd *SendBuildInfoCommand) Run() error {
 		return err
 	}
 
-	if buildInfo.Issues != nil && len(buildInfo.Issues.AffectedIssues) > 0 {
+	if buildInfo != nil && buildInfo.Issues != nil && len(buildInfo.Issues.AffectedIssues) > 0 {
 		// We have issues, lets send the build-info
 		client, err := services.NewOAuthJiraService(cmd.jiraConfiguration.jiraUrl, cmd.jiraConfiguration.jiraClientId,
 			cmd.jiraConfiguration.jiraSecret, cmd.jiraConfiguration.dryRun)

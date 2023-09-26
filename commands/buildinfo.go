@@ -29,10 +29,9 @@ func getBuildInfo(buildConfig *utils.BuildConfiguration, serverDetails *utilscon
 	publishedBuildInfo, found, err := bis.GetBuildInfo(artservices.BuildInfoParams{BuildName: buildName, BuildNumber: buildNumber})
 	if err != nil {
 		return nil, err
+	} else if !found {
+		return nil, nil
+	} else {
+		return &publishedBuildInfo.BuildInfo, nil
 	}
-	if !found {
-		return &buildinfo.BuildInfo{}, nil
-	}
-
-	return &publishedBuildInfo.BuildInfo, nil
 }
