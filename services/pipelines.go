@@ -162,9 +162,9 @@ func (ps *PipelinesService) FindRun(attributes map[string]string) (*pipelines.Ru
 	return nil, errorutils.CheckErrorf(fmt.Sprintf("No pipeline run found with %s\n", params))
 }
 
-func (ps *PipelinesService) GetRunResourceVersion(versionId int64) (*pipelines.RunResourceVersion, error) {
+func (ps *PipelinesService) GetRunResourceVersion(versionId string) (*pipelines.RunResourceVersion, error) {
 	versions := &[]pipelines.RunResourceVersion{}
-	err := ps.GetRequest("api/v1/runResourceVersions?runResourceVersionIds="+strconv.FormatInt(versionId, 10), versions)
+	err := ps.GetRequest("api/v1/runResourceVersions?runResourceVersionIds="+versionId, versions)
 	if err != nil {
 		return nil, err
 	}

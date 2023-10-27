@@ -1,3 +1,6 @@
+## 1.6.8 (October 27, 2023)
+- Bugfix in looking up run resource version
+
 ## 1.6.7 (September 26, 2023)
 - Improved adding pipeline branch to Slack message if no other vcs information is available
 

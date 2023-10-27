@@ -56,7 +56,7 @@ func (cmd *SendDeploymentInfoCommand) Run() error {
 		return err
 	}
 	// Get current run resource version details
-	triggeredByRunResourceVersionId := int64(currentRun.StaticPropertyBag["triggeredByRunResourceVersionId"].(float64))
+	triggeredByRunResourceVersionId := currentRun.StaticPropertyBag["triggeredByRunResourceVersionId"].(string)
 	currentRunResourceVersion, err := pipelinesService.GetRunResourceVersion(triggeredByRunResourceVersionId)
 	if err != nil {
 		return err
