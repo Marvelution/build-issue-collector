@@ -16,7 +16,7 @@ func main() {
 	plugins.PluginMain(components.App{
 		Name:        "ext-build-info",
 		Description: "Extended build info.",
-		Version:     "v1.6.9",
+		Version:     "v1.7.0",
 		Commands: []components.Command{
 			{
 				Name:        "collect-issues",
@@ -280,6 +280,60 @@ func main() {
 					return notifySlackCmd(c)
 				},
 			},
+			{
+				Name:        "notify-bitbucket",
+				Description: "Send build-info to Bitbucket",
+				Aliases:     []string{"bb"},
+				Flags: []components.Flag{
+					components.StringFlag{
+						Name:        "server-id",
+						Description: "Server ID configured using the config command.",
+					},
+					components.StringFlag{
+						Name:        "project",
+						Description: "Artifactory project key.",
+					},
+					components.StringFlag{
+						Name:        "bitbucket-id",
+						Description: "Bitbucket integration name.",
+					},
+					components.StringFlag{
+						Name:        "bitbucket-url",
+						Description: "Bitbucket base url.",
+					},
+					components.StringFlag{
+						Name:        "bitbucket-username",
+						Description: "The Bitbucket username.",
+					},
+					components.StringFlag{
+						Name:        "bitbucket-token",
+						Description: "The Bitbucket token.",
+					},
+					components.BoolFlag{
+						Name:         "include-pre-post-runs",
+						Description:  "Enable to include pipeline preRun and postRun steps.",
+						DefaultValue: false,
+					},
+					components.BoolFlag{
+						Name:         "dry-run",
+						Description:  "Enable to only log what would be send to Bitbucket.",
+						DefaultValue: false,
+					},
+				},
+				Arguments: []components.Argument{
+					{
+						Name:        "build name",
+						Description: "The name of the build.",
+					},
+					{
+						Name:        "build number",
+						Description: "The number of the build.",
+					},
+				},
+				Action: func(c *components.Context) error {
+					return notifyBitbucketCmd(c)
+				},
+			},
 		},
 	})
 }
@@ -387,6 +441,26 @@ func notifySlackCmd(c *components.Context) error {
 	return notifySlackCommand.Run()
 }
 
+func notifyBitbucketCmd(c *components.Context) error {
+	nargs := len(c.Arguments)
+	if nargs > 2 {
+		return errors.New(fmt.Sprintf("Wrong number of arguments (%d).", nargs))
+	}
+	buildConfiguration := CreateBuildConfiguration(c)
+	if err := buildConfiguration.ValidateBuildParams(); err != nil {
+		return err
+	}
+
+	bitbucketConfiguration := CreateBitbucketConfiguration(c)
+	if err := bitbucketConfiguration.ValidateBitbucketConfiguration(); err != nil {
+		return err
+	}
+
+	notifyBitbucketCommand := commands.NewNotifyBitbucketCommand().SetBuildConfiguration(buildConfiguration).SetBitbucketConfiguration(
+		bitbucketConfiguration)
+	return notifyBitbucketCommand.Run()
+}
+
 func CreateBuildConfiguration(c *components.Context) *artifactoryUtils.BuildConfiguration {
 	buildConfiguration := new(artifactoryUtils.BuildConfiguration)
 	buildNameArg, buildNumberArg := "", ""
@@ -453,4 +527,17 @@ func CreateSlackConfiguration(c *components.Context) *commands.SlackConfiguratio
 	slackConfiguration.SetFailOnReject(c.GetBoolFlagValue("fail-on-reject"))
 	slackConfiguration.SetDryRun(c.GetBoolFlagValue("dry-run"))
 	return slackConfiguration
+}
+
+func CreateBitbucketConfiguration(c *components.Context) *commands.BitbucketConfiguration {
+	bitbucketConfiguration := new(commands.BitbucketConfiguration)
+	bitbucketConfiguration.SetServerID(c.GetStringFlagValue("server-id"))
+	bitbucketConfiguration.SetBitbucketID(c.GetStringFlagValue("bitbucket-id"))
+	if url := c.GetStringFlagValue("bitbucket-url"); url != "" {
+		bitbucketConfiguration.SetBitbucketDetails(url, c.GetStringFlagValue("bitbucket-username"),
+			c.GetStringFlagValue("bitbucket-token"))
+	}
+	bitbucketConfiguration.SetDryRun(c.GetBoolFlagValue("dry-run"))
+	bitbucketConfiguration.SetIncludePrePostRunSteps(c.GetBoolFlagValue("include-pre-post-runs"))
+	return bitbucketConfiguration
 }

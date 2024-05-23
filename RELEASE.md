@@ -1,3 +1,6 @@
+## 1.7.0 (May 23, 2024)
+- Added Bitbucket commit status notification 
+
 ## 1.6.9 (May 23, 2024)
 - Expanded test report notification to Slack to include all steps
 

@@ -37,3 +37,15 @@ func (js *jiraDetails) GetRequest(url string, request any) error {
 		return errorutils.CheckErrorf(fmt.Sprintf("Response from Jira: %s.\n%s\n", resp.Status, body))
 	}
 }
+
+func NewBitbucketDetails() auth.ServiceDetails {
+	return &bitbucketDetails{}
+}
+
+type bitbucketDetails struct {
+	auth.CommonConfigFields
+}
+
+func (bs *bitbucketDetails) GetVersion() (string, error) {
+	return "Cloud", nil
+}
