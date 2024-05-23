@@ -119,17 +119,36 @@ func (cmd *NotifySlackCommand) Run() error {
 
 	testReport := pipelineReport.TestReport
 	if testReport.TotalTests > 0 {
-		icon := ""
-		if pipelineReport.TestReport.TotalFailures > 0 || pipelineReport.TestReport.TotalErrors > 0 {
-			icon = ":exclamation: "
+		if pipelineReport.TestReport.HasFailuresOrErrors() {
+			var testReports []string
+			testReports = append(testReports, fmt.Sprintf(":exclamation: %d tests; %d succeeded, %d skipped, %d failed, %d errored",
+				testReport.TotalTests, testReport.TotalPassing, testReport.TotalSkipped, testReport.TotalFailures, testReport.TotalErrors))
+			for _, step := range pipelineReport.Steps {
+				icon = ""
+				if step.TestReport.HasFailuresOrErrors() {
+					icon = ":exclamation: "
+				}
+				testReports = append(testReports, fmt.Sprintf("%s%s %d tests; %d succeeded, %d skipped, %d failed, %d errored",
+					icon, step.Step.Name, step.TestReport.TotalTests, step.TestReport.TotalPassing, step.TestReport.TotalSkipped,
+					step.TestReport.TotalFailures, step.TestReport.TotalErrors))
+			}
+			message.Blocks = append(message.Blocks, SlackBlock{
+				Type: "section",
+				Text: SlackText{
+					Type: "mrkdwn",
+					Text: strings.Join(testReports, "\n"),
+				},
+			})
+		} else {
+			message.Blocks = append(message.Blocks, SlackBlock{
+				Type: "section",
+				Text: SlackText{
+					Type: "mrkdwn",
+					Text: fmt.Sprintf("%d tests; %d succeeded, %d skipped", testReport.TotalTests, testReport.TotalPassing,
+						testReport.TotalSkipped),
+				},
+			})
 		}
-		message.Blocks = append(message.Blocks, SlackBlock{
-			Type: "section",
-			Text: SlackText{
-				Type: "mrkdwn",
-				Text: fmt.Sprintf("%s%d tests; %d succeeded, %d skipped, %d failed, %d errored", icon, testReport.TotalTests, testReport.TotalPassing, testReport.TotalSkipped, testReport.TotalFailures, testReport.TotalErrors),
-			},
-		})
 	}
 
 	xrayService, err := services.NewXrayService(*cmd.slackConfiguration.serverDetails)
@@ -143,9 +162,12 @@ func (cmd *NotifySlackCommand) Run() error {
 			if len(scanResult.Vulnerabilities) > 0 {
 				var text string
 				if len(scanResult.Violations) > 0 {
-					text = fmt.Sprintf(":exclamation: <%s|%d violations>, %d security issues, %d operational risks", scanResult.MoreDetailsUrl, len(scanResult.Violations), len(scanResult.Vulnerabilities), len(summary.OperationalRisks))
+					text = fmt.Sprintf(":exclamation: <%s|%d violations>, %d security issues, %d operational risks",
+						scanResult.MoreDetailsUrl, len(scanResult.Violations), len(scanResult.Vulnerabilities),
+						len(summary.OperationalRisks))
 				} else {
-					text = fmt.Sprintf("%d security issues, %d operational risks", len(scanResult.Vulnerabilities), len(summary.OperationalRisks))
+					text = fmt.Sprintf("%d security issues, %d operational risks", len(scanResult.Vulnerabilities),
+						len(summary.OperationalRisks))
 				}
 				message.Blocks = append(message.Blocks, SlackBlock{
 					Type: "section",

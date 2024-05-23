@@ -1,3 +1,6 @@
+## 1.6.9 (May 23, 2024)
+- Expanded test report notification to Slack to include all steps
+
 ## 1.6.8 (October 27, 2023)
 - Bugfix in looking up run resource version
 

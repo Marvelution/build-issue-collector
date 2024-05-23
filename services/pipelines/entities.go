@@ -40,6 +40,7 @@ type PipelineRunReport struct {
 	State               common.State         `json:"state"`
 	TestReport          PipelineTestReport   `json:"tests"`
 	RunResourceVersions []RunResourceVersion `json:"run-resource-versions"`
+	Steps               []StepRunReport      `json:"steps"`
 }
 
 func (prr *PipelineRunReport) GetGitRepoRunResourceVersions() *[]RunResourceVersion {
@@ -65,6 +66,15 @@ type PipelineTestReport struct {
 	TotalFailures int64 `json:"totalFailures"`
 	TotalErrors   int64 `json:"totalErrors"`
 	TotalSkipped  int64 `json:"totalSkipped"`
+}
+
+func (prt *PipelineTestReport) HasFailuresOrErrors() bool {
+	return prt.TotalFailures > 0 || prt.TotalErrors > 0
+}
+
+type StepRunReport struct {
+	Step       Step           `json:"step"`
+	TestReport StepTestReport `json:"tests"`
 }
 
 type Step struct {
@@ -119,6 +129,10 @@ type StepTestReport struct {
 	TotalFailures    int64 `json:"totalFailures"`
 	TotalErrors      int64 `json:"totalErrors"`
 	TotalSkipped     int64 `json:"totalSkipped"`
+}
+
+func (srt *StepTestReport) HasFailuresOrErrors() bool {
+	return srt.TotalFailures > 0 || srt.TotalErrors > 0
 }
 
 type Run struct {

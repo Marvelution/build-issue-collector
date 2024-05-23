@@ -81,7 +81,7 @@ func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSte
 		TestReport: pipelines.PipelineTestReport{},
 	}
 
-	_, stepIds, state, err := ps.GetRunSteps(parsedRunId, includePrePostRunSteps)
+	steps, stepIds, state, err := ps.GetRunSteps(parsedRunId, includePrePostRunSteps)
 	if err != nil {
 		return nil, err
 	}
@@ -92,12 +92,21 @@ func (ps *PipelinesService) GetPipelineReport(runId string, includePrePostRunSte
 	if err != nil {
 		return nil, err
 	}
+	pipelineReport.Steps = []pipelines.StepRunReport{}
 	for _, stepTestReport := range *stepTestReports {
 		pipelineReport.TestReport.TotalPassing += stepTestReport.TotalPassing
 		pipelineReport.TestReport.TotalFailures += stepTestReport.TotalFailures
 		pipelineReport.TestReport.TotalErrors += stepTestReport.TotalErrors
 		pipelineReport.TestReport.TotalSkipped += stepTestReport.TotalSkipped
 		pipelineReport.TestReport.TotalTests += stepTestReport.TotalTests
+		step := pipelines.Step{}
+		for _, s := range *steps {
+			if s.Id == stepTestReport.StepId {
+				step = s
+				break
+			}
+		}
+		pipelineReport.Steps = append(pipelineReport.Steps, pipelines.StepRunReport{Step: step, TestReport: stepTestReport})
 	}
 
 	runResourceVersions, err := ps.GetRunResourceVersions(parsedRunId)
